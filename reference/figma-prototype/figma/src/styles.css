@@ -1,0 +1,231 @@
+@import "tailwindcss" source(none);
+@source "../src";
+
+@theme {
+  --font-display: 'Plus Jakarta Sans', sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  --color-bg: #0B2239;
+  --color-card: #11324D;
+  --color-elevated: #0D2A40;
+  --color-cyan: #00FFFF;
+  --color-cyan-dim: #00BFBF;
+  --color-cyan-dark: #009999;
+  --color-gold: #FFD700;
+  --color-red: #FF5555;
+  --color-green: #32CD32;
+  --color-text1: #FFFFFF;
+  --color-text2: #CDE2F0;
+  --color-text3: #4A7A9B;
+}
+
+/* ─── Base reset ─── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #061626;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* On tablets the shell fills the screen, so show matching bg */
+@media (min-width: 768px) and (max-width: 1279px) {
+  html, body, #root {
+    background: #0B2239;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #061626;
+}
+
+/* ─── Phone shell ─── */
+.shell {
+  width: 100%;
+  max-width: 430px;
+  height: 100%;
+  max-height: 932px;
+  background: #0B2239;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Large phone (480–767px): floating card look */
+@media (min-width: 480px) and (max-width: 767px) {
+  .shell {
+    max-height: min(932px, calc(100% - 32px));
+    border-radius: 44px;
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.08),
+      0 0 0 8px rgba(0,0,0,0.45),
+      0 40px 80px rgba(0,0,0,0.85);
+  }
+}
+
+/* Tablet (768px–1279px): fill the full screen */
+@media (min-width: 768px) and (max-width: 1279px) {
+  .shell {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
+/* Desktop (1280px+): centered wide card */
+@media (min-width: 1280px) {
+  .shell {
+    max-width: 680px;
+    max-height: min(1080px, calc(100% - 64px));
+    border-radius: 44px;
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.08),
+      0 0 0 8px rgba(0,0,0,0.45),
+      0 40px 80px rgba(0,0,0,0.85);
+  }
+}
+
+/* Tablet-aware horizontal padding */
+@media (min-width: 768px) {
+  .hide-on-tablet {
+    display: none !important;
+  }
+  .tablet-px {
+    padding-left: 1.75rem;
+    padding-right: 1.75rem;
+  }
+}
+
+/* ─── Screen helpers ─── */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.screen-body {
+  flex: 1 1 0px;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ─── Utilities ─── */
+::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; }
+
+/* ─── Responsive layout helpers ─── */
+
+.feed-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+@media (min-width: 768px) {
+  .feed-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    align-items: start;
+  }
+}
+
+.people-grid {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.people-grid > * { flex-shrink: 0; }
+@media (min-width: 768px) {
+  .people-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    overflow-x: visible;
+    padding-bottom: 0;
+  }
+  .people-grid > * { flex-shrink: unset; }
+}
+
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+@media (min-width: 768px) {
+  .category-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.people-cards-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+@media (min-width: 768px) {
+  .people-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    align-items: start;
+  }
+}
+
+.content-width {
+  width: 100%;
+  max-width: 680px;
+  margin-left: auto;
+  margin-right: auto;
+}
+@media (min-width: 768px) and (max-width: 1279px) {
+  .content-width {
+    max-width: 100%;
+  }
+}
+
+input, textarea, select { font-family: inherit; }
+
+/* ─── Animations ─── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.animate-fade-in  { animation: fadeIn  0.3s ease forwards; }
+.animate-slide-up { animation: slideUp 0.35s cubic-bezier(0.32,0.72,0,1) forwards; }
+.skeleton {
+  background: linear-gradient(90deg, #11324D 25%, #0D2A40 50%, #11324D 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
