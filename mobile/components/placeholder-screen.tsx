@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 
 import AppText from "@/components/ui/app-text";
@@ -11,20 +12,22 @@ type PlaceholderScreenProps = {
   title: string;
   /** Which milestone replaces this placeholder, e.g. "Phase 2 — Profile and dashboard". */
   plannedFor: string;
+  /** Optional real content shown under the placeholder notice (e.g. Phase 1 account card). */
+  children?: ReactNode;
 };
 
 /**
- * TEMPORARY — Phase 0 shell only.
+ * TEMPORARY — shell screens only.
  * Every screen using this component must be replaced by its real implementation.
  * Search the codebase for `PlaceholderScreen` to find what is still outstanding.
  */
-export default function PlaceholderScreen({ title, plannedFor }: PlaceholderScreenProps) {
+export default function PlaceholderScreen({ title, plannedFor, children }: PlaceholderScreenProps) {
   const router = useRouter();
   return (
-    <Screen>
+    <Screen scroll contentStyle={styles.scroll}>
       <View style={styles.container}>
         <GenzLogo size="xl" variant="stacked" />
-        <AppText variant="display" style={styles.title} accessibilityRole="header">
+        <AppText variant="display" style={styles.title} align="center" accessibilityRole="header">
           {title}
         </AppText>
         <View style={styles.badge}>
@@ -35,6 +38,7 @@ export default function PlaceholderScreen({ title, plannedFor }: PlaceholderScre
         <AppText variant="body" color={Colors.text3} align="center">
           Built in {plannedFor}
         </AppText>
+        {children ? <View style={styles.children}>{children}</View> : null}
         {__DEV__ ? (
           <Button
             label="Open UI kit (dev only)"
@@ -50,7 +54,8 @@ export default function PlaceholderScreen({ title, plannedFor }: PlaceholderScre
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: "center", justifyContent: "center", gap: Spacing.md },
+  scroll: { flexGrow: 1, paddingBottom: 120 },
+  container: { flex: 1, alignItems: "center", justifyContent: "center", gap: Spacing.md, paddingTop: Spacing.xxxl },
   title: { marginTop: Spacing.lg },
   badge: {
     paddingHorizontal: 10,
@@ -60,5 +65,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.gold,
   },
   badgeText: { fontFamily: FontFamily.bold, fontSize: 11, lineHeight: 14, letterSpacing: 1 },
+  children: { alignSelf: "stretch", marginTop: Spacing.xl },
   devButton: { marginTop: Spacing.xxl },
 });

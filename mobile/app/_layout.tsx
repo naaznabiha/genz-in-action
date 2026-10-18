@@ -5,6 +5,7 @@ import { Inter_700Bold } from "@expo-google-fonts/inter/700Bold";
 import { PlusJakartaSans_700Bold } from "@expo-google-fonts/plus-jakarta-sans/700Bold";
 import { PlusJakartaSans_800ExtraBold } from "@expo-google-fonts/plus-jakarta-sans/800ExtraBold";
 import { DarkTheme, ThemeProvider, type Theme } from "@react-navigation/native";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -14,13 +15,12 @@ import "react-native-reanimated";
 
 import { ToastProvider } from "@/components/ui/toast";
 import { Colors, FontFamily } from "@/constants/theme";
+import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { queryClient } from "@/lib/query-client";
 
-// Keep the native splash visible until fonts are ready, so text never flashes in the wrong font.
+// Keep the native splash visible until fonts and the persisted session are ready,
+// so the user never sees the wrong font or a flash of the wrong screen.
 void SplashScreen.preventAutoHideAsync();
-
-export const unstable_settings = {
-  anchor: "(tabs)",
-};
 
 /** React Navigation theme built from the GenZ tokens so every navigator matches the design. */
 const navigationTheme: Theme = {
@@ -36,6 +36,39 @@ const navigationTheme: Theme = {
   },
 };
 
+/**
+ * Session gate (spec §5.4). Expo Router's Stack.Protected removes screens whose
+ * guard is false and redirects to the first available screen, so:
+ *  - signed out (or mid password-reset) → (auth) group
+ *  - signed in                          → (tabs) group
+ * When the session ends (logout, revoked or expired token) the guard flips and
+ * protected history is discarded, so no protected screen is left visible.
+ */
+function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
+  const { isReady, isSignedIn } = useAuth();
+  const ready = fontsReady && isReady;
+
+  useEffect(() => {
+    if (ready) void SplashScreen.hideAsync();
+  }, [ready]);
+
+  if (!ready) return null;
+
+  return (
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg } }}>
+      <Stack.Protected guard={!isSignedIn}>
+        <Stack.Screen name="(auth)" />
+      </Stack.Protected>
+      <Stack.Protected guard={isSignedIn}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="dev/ui-kit" />
+      </Stack.Protected>
+      {/* Always reachable: Terms of Service / Privacy Policy (FR-02, FR-26). */}
+      <Stack.Screen name="legal/[doc]" />
+    </Stack>
+  );
+}
+
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     [FontFamily.regular]: Inter_400Regular,
@@ -45,28 +78,24 @@ export default function RootLayout() {
     [FontFamily.displayBold]: PlusJakartaSans_700Bold,
     [FontFamily.displayBlack]: PlusJakartaSans_800ExtraBold,
   });
-  const ready = fontsLoaded || Boolean(fontError);
 
   useEffect(() => {
     if (fontError) {
       // Fonts are bundled, so this should not happen; fall back to system fonts rather than block the app.
       console.warn("[fonts] Failed to load custom fonts, using system fonts.", fontError);
     }
-    if (ready) void SplashScreen.hideAsync();
-  }, [ready, fontError]);
+  }, [fontError]);
 
-  if (!ready) return null;
-
-  // Phase 1 adds the AuthProvider, QueryClientProvider and the (auth)/(app) session gate here.
   return (
-    <ThemeProvider value={navigationTheme}>
-      <ToastProvider>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg } }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="dev/ui-kit" />
-        </Stack>
-      </ToastProvider>
-      <StatusBar style="light" />
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <ThemeProvider value={navigationTheme}>
+          <ToastProvider>
+            <RootNavigator fontsReady={fontsLoaded || Boolean(fontError)} />
+          </ToastProvider>
+          <StatusBar style="light" />
+        </ThemeProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }

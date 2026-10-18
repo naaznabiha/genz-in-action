@@ -1,104 +1,118 @@
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { toReadableAuthError } from "@/lib/auth-errors";
-import type { Profile } from "@/types/profile";
+import { AuthFlowError, toAuthFlowError, toReadableAuthError } from "@/lib/auth-errors";
+import { requireSupabaseConfig, supabase } from "@/lib/supabase";
 
-function requireConfig() {
-  if (!isSupabaseConfigured) {
-    throw new Error(
-      "Supabase is not configured. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to mobile/.env",
-    );
-  }
+/**
+ * All Supabase Auth calls used by the Phase 1 auth flow.
+ * Every function throws AuthFlowError (readable message + Supabase error code).
+ *
+ * Email verification and password reset use 6-digit email codes instead of
+ * links (decision D5), so they work in Expo Go without deep-link setup.
+ * This requires {{ .Token }} in the "Confirm signup" and "Reset password"
+ * email templates — see supabase/README.md, manual step M3.
+ */
+
+/** Server-side, case-insensitive availability check (RPC public.is_username_available). */
+export async function isUsernameAvailable(username: string): Promise<boolean> {
+  requireSupabaseConfig();
+  const { data, error } = await supabase.rpc("is_username_available", { candidate: username });
+  if (error) throw new AuthFlowError(toReadableAuthError(error), error.code);
+  return data === true;
 }
 
-export async function fetchProfile(userId: string): Promise<Profile | null> {
-  requireConfig();
-  const { data, error } = await supabase
-    .from("profiles")
-    .select(
-      "id, username, display_name, avatar_url, bio, cause, location, website, followers_count, following_count, actions_count, impact_points, is_verified, created_at",
-    )
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error) throw new Error(toReadableAuthError(error.message));
-  return data as Profile | null;
-}
-
-export async function isUsernameTaken(username: string): Promise<boolean> {
-  requireConfig();
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id")
-    .ilike("username", username)
-    .maybeSingle();
-
-  if (error) throw new Error(toReadableAuthError(error.message));
-  return Boolean(data);
-}
+export type SignUpResult = {
+  /** True when Supabase requires the user to confirm their email before a session is issued. */
+  needsEmailConfirmation: boolean;
+};
 
 export async function signUpWithEmail(input: {
   email: string;
   password: string;
   displayName: string;
   username: string;
-}) {
-  requireConfig();
+}): Promise<SignUpResult> {
+  requireSupabaseConfig();
+  const username = input.username.trim().toLowerCase();
 
-  if (await isUsernameTaken(input.username)) {
-    throw new Error("That username is already taken.");
+  if (!(await isUsernameAvailable(username))) {
+    throw new AuthFlowError("That username is already taken.", "username_taken");
   }
 
   const { data, error } = await supabase.auth.signUp({
     email: input.email.trim(),
     password: input.password,
     options: {
-      data: {
-        display_name: input.displayName.trim(),
-        username: input.username.trim().toLowerCase(),
-      },
+      // Read by public.handle_new_user() to create the profile row.
+      data: { display_name: input.displayName.trim(), username },
     },
   });
+  if (error) throw toAuthFlowError(error);
 
-  if (error) throw new Error(toReadableAuthError(error));
+  // With email confirmation on, Supabase does not reveal that an email is
+  // already registered: it returns a user with no identities and sends no email.
+  if (data.user && !data.session && (data.user.identities?.length ?? 0) === 0) {
+    throw new AuthFlowError("An account with this email already exists. Try logging in.", "user_already_exists");
+  }
 
-  return {
-    session: data.session,
-    needsEmailConfirmation: !data.session && Boolean(data.user),
-  };
+  return { needsEmailConfirmation: !data.session };
+}
+
+/** Confirms a new account with the code from the "Confirm signup" email. Establishes a session. */
+export async function verifySignupCode(email: string, code: string) {
+  requireSupabaseConfig();
+  const { data, error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: "email" });
+  if (error) throw toAuthFlowError(error);
+  return data.session;
+}
+
+export async function resendSignupCode(email: string) {
+  requireSupabaseConfig();
+  const { error } = await supabase.auth.resend({ type: "signup", email: email.trim() });
+  if (error) throw toAuthFlowError(error);
 }
 
 export async function signInWithEmail(email: string, password: string) {
-  requireConfig();
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: email.trim(),
-    password,
-  });
-  if (error) throw new Error(toReadableAuthError(error));
+  requireSupabaseConfig();
+  const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+  if (error) throw toAuthFlowError(error);
   return data.session;
 }
 
+/** Ends the session on this device. Local state is cleared even if the network call fails. */
 export async function signOut() {
-  requireConfig();
-  const { error } = await supabase.auth.signOut();
-  if (error) throw new Error(toReadableAuthError(error));
+  requireSupabaseConfig();
+  const { error } = await supabase.auth.signOut({ scope: "local" });
+  if (error) throw toAuthFlowError(error);
 }
 
-export async function sendLoginOtp(email: string) {
-  requireConfig();
-  const { error } = await supabase.auth.signInWithOtp({
-    email: email.trim(),
-    options: { shouldCreateUser: false },
-  });
-  if (error) throw new Error(toReadableAuthError(error));
+/**
+ * Sends the "Reset password" email. Supabase responds the same way whether or
+ * not the address has an account, so the UI must not claim the account exists.
+ */
+export async function requestPasswordReset(email: string) {
+  requireSupabaseConfig();
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+  if (error) throw toAuthFlowError(error);
 }
 
-export async function verifyEmailOtp(email: string, token: string) {
-  requireConfig();
-  const { data, error } = await supabase.auth.verifyOtp({
-    email: email.trim(),
-    token: token.trim(),
-    type: "email",
-  });
-  if (error) throw new Error(toReadableAuthError(error));
+/** Verifies the reset code. On success Supabase signs the user in (recovery session). */
+export async function verifyRecoveryCode(email: string, code: string) {
+  requireSupabaseConfig();
+  const { data, error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: "recovery" });
+  if (error) throw toAuthFlowError(error);
   return data.session;
+}
+
+/**
+ * Sets a new password for the signed-in (recovery) user, then revokes the
+ * user's sessions on other devices so the "signed out everywhere else"
+ * message in the UI is true. Revocation failure is reported but does not
+ * undo the password change.
+ */
+export async function updatePassword(newPassword: string): Promise<{ otherSessionsRevoked: boolean }> {
+  requireSupabaseConfig();
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw toAuthFlowError(error);
+
+  const { error: revokeError } = await supabase.auth.signOut({ scope: "others" });
+  return { otherSessionsRevoked: !revokeError };
 }

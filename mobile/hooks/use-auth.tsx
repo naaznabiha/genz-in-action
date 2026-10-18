@@ -1,108 +1,132 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Session, User } from "@supabase/supabase-js";
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { fetchProfile, signOut as signOutRequest } from "@/services/auth";
-import type { Profile } from "@/types/profile";
+import { signOut as signOutRequest } from "@/services/auth";
 
+/** AsyncStorage flag (non-sensitive) so returning users skip onboarding (spec §5.1, FR-01). */
 const ONBOARDING_KEY = "genz_has_onboarded";
 
 type AuthContextValue = {
+  /** False until the onboarding flag and any persisted session have been read. */
   isReady: boolean;
   session: Session | null;
   user: User | null;
-  profile: Profile | null;
+  /** Signed in AND not in the middle of a password reset. Drives the route guard. */
+  isSignedIn: boolean;
   hasOnboarded: boolean;
   isConfigured: boolean;
+  /**
+   * True between entering a valid reset code and finishing the reset flow.
+   * Supabase signs the user in when the code is verified; this keeps them on
+   * the auth screens until they have set a new password.
+   */
+  isRecoveringPassword: boolean;
+  setRecoveringPassword: (value: boolean) => void;
   completeOnboarding: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+async function readOnboardingFlag(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(ONBOARDING_KEY)) === "true";
+  } catch {
+    return false; // storage unavailable: showing onboarding again is harmless
+  }
+}
+
+/**
+ * Session state only. Profile data is server state and lives in TanStack Query
+ * (hooks/use-profile.ts).
+ */
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [isReady, setIsReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [hasOnboarded, setHasOnboarded] = useState(false);
+  const [isRecoveringPassword, setRecoveringPassword] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
     async function bootstrap() {
-      const onboardedValue = await AsyncStorage.getItem(ONBOARDING_KEY);
-      if (isMounted) setHasOnboarded(onboardedValue === "true");
+      const onboarded = await readOnboardingFlag();
+      if (isMounted) setHasOnboarded(onboarded);
 
-      if (!isSupabaseConfigured) {
-        if (isMounted) setIsReady(true);
-        return;
-      }
-
-      const { data } = await supabase.auth.getSession();
-      if (!isMounted) return;
-
-      setSession(data.session);
-      if (data.session?.user.id) {
-        try {
-          const nextProfile = await fetchProfile(data.session.user.id);
-          if (isMounted) setProfile(nextProfile);
-        } catch {
-          if (isMounted) setProfile(null);
-        }
+      if (isSupabaseConfigured) {
+        // Restores the persisted session (spec §5.4). An expired access token is
+        // refreshed here; a revoked refresh token yields no session.
+        const { data } = await supabase.auth.getSession();
+        if (isMounted) setSession(data.session);
       }
       if (isMounted) setIsReady(true);
     }
 
     void bootstrap();
 
-    if (!isSupabaseConfigured) return () => {
-      isMounted = false;
-    };
+    if (!isSupabaseConfigured) {
+      return () => {
+        isMounted = false;
+      };
+    }
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (!isMounted) return;
       setSession(nextSession);
-      if (!nextSession?.user.id) {
-        setProfile(null);
-        return;
+      if (event === "PASSWORD_RECOVERY") setRecoveringPassword(true);
+      if (event === "SIGNED_OUT" || !nextSession) {
+        // Revoked/expired sessions also arrive here; drop cached user data so the
+        // next account never sees the previous one's state.
+        setRecoveringPassword(false);
+        queryClient.clear();
       }
-      void fetchProfile(nextSession.user.id)
-        .then(setProfile)
-        .catch(() => setProfile(null));
     });
 
     return () => {
       isMounted = false;
-      subscription.subscription.unsubscribe();
+      listener.subscription.unsubscribe();
     };
+  }, [queryClient]);
+
+  const completeOnboarding = useCallback(async () => {
+    setHasOnboarded(true);
+    try {
+      await AsyncStorage.setItem(ONBOARDING_KEY, "true");
+    } catch {
+      // Non-fatal: onboarding will simply show again next launch.
+    }
   }, []);
+
+  const signOut = useCallback(async () => {
+    try {
+      await signOutRequest();
+    } finally {
+      // supabase-js clears the local session even when the network call fails;
+      // make sure the UI follows regardless.
+      setSession(null);
+      setRecoveringPassword(false);
+      queryClient.clear();
+    }
+  }, [queryClient]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       isReady,
       session,
       user: session?.user ?? null,
-      profile,
+      isSignedIn: Boolean(session) && !isRecoveringPassword,
       hasOnboarded,
       isConfigured: isSupabaseConfigured,
-      completeOnboarding: async () => {
-        await AsyncStorage.setItem(ONBOARDING_KEY, "true");
-        setHasOnboarded(true);
-      },
-      refreshProfile: async () => {
-        if (!session?.user.id) {
-          setProfile(null);
-          return;
-        }
-        setProfile(await fetchProfile(session.user.id));
-      },
-      signOut: async () => {
-        await signOutRequest();
-        setProfile(null);
-      },
+      isRecoveringPassword,
+      setRecoveringPassword,
+      completeOnboarding,
+      signOut,
     }),
-    [hasOnboarded, isReady, profile, session],
+    [completeOnboarding, hasOnboarded, isReady, isRecoveringPassword, session, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
