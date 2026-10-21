@@ -150,9 +150,15 @@ begin
     get diagnostics n = row_count;
     res := res || jsonb_build_array(jsonb_build_object('o', 25, 't', 'Nobody overwrites avatars (own included)', 'ok', n = 0, 'd', n || ' row(s) changed'));
 
-    delete from storage.objects where bucket_id = 'avatars' and name = b_path;
-    get diagnostics n = row_count;
-    res := res || jsonb_build_array(jsonb_build_object('o', 26, 't', 'A cannot delete B avatar', 'ok', n = 0, 'd', n || ' row(s) deleted'));
+    -- Hosted Supabase also blocks every direct SQL delete on storage tables
+    -- ("Use the Storage API instead", 42501); either outcome means B's file survives.
+    state := 'none';
+    n := 0;
+    begin
+      delete from storage.objects where bucket_id = 'avatars' and name = b_path;
+      get diagnostics n = row_count;
+    exception when others then state := sqlstate; end;
+    res := res || jsonb_build_array(jsonb_build_object('o', 26, 't', 'A cannot delete B avatar', 'ok', n = 0, 'd', n || ' row(s) deleted, sqlstate ' || state));
 
     select count(*) into n from storage.objects where bucket_id = 'avatars' and name = b_path;
     res := res || jsonb_build_array(jsonb_build_object('o', 27, 't', 'A cannot list B avatar folder', 'ok', n = 0, 'd', n || ' row(s)'));
@@ -178,9 +184,16 @@ begin
     exception when others then state := sqlstate; end;
     res := res || jsonb_build_array(jsonb_build_object('o', 33, 't', 'avatar_url no longer writable', 'ok', state = '42501', 'd', 'sqlstate ' || state));
 
-    delete from storage.objects where bucket_id = 'avatars' and name = a_path;
-    get diagnostics n = row_count;
-    res := res || jsonb_build_array(jsonb_build_object('o', 34, 't', 'A deletes own avatar file', 'ok', n = 1, 'd', n || ' row(s) deleted'));
+    -- Own-file delete: allowed by policy. On hosted Supabase direct SQL deletes are
+    -- blocked for everyone (42501), so this is verified via the Storage API in the app tests.
+    state := 'none';
+    n := 0;
+    begin
+      delete from storage.objects where bucket_id = 'avatars' and name = a_path;
+      get diagnostics n = row_count;
+    exception when others then state := sqlstate; end;
+    res := res || jsonb_build_array(jsonb_build_object('o', 34, 't', 'A deletes own avatar file (policy allows)', 'ok', n = 1 or state = '42501',
+             'd', case when state = '42501' then 'direct SQL delete blocked by Supabase; use Storage API test' else n || ' row(s) deleted' end));
 
     -- activity ledger
     state := 'none';

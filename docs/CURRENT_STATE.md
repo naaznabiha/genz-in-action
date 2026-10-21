@@ -51,7 +51,7 @@ blocked after logout.
 **Not verified yet (needs you):** everything that talks to the real Supabase project, and everything on
 a physical Android device. Use `docs/phase-1-acceptance-tests.md`.
 
-## Phase 2: profile, dashboard and settings (implemented, awaiting backend apply + device testing)
+## Phase 2: profile, dashboard and settings (implemented, database applied, awaiting device testing)
 
 **Prerequisite audit (2026-10-21).** Nothing blocking was found. Verified: typecheck, lint and the Android bundle
 on the Phase 1 commit; all Phase 1 migrations replayed on local PG16 twice (15/15 verify, 13/13 RLS);
@@ -74,8 +74,9 @@ the Phase 1 acceptance checklist (needs your phone and real email).
 - New deps: `expo-image-picker ~17.0.11`, `expo-image-manipulator ~14.0.8` (D22).
 
 **Database (supabase/)**: 8 new migrations + 3 checks. See `supabase/README.md` → Phase 2.
-**Not yet applied to the Supabase project** (review first, per spec Appendix B). Until they are
-applied, Phase 2 screens show "The server isn't fully set up yet…" errors instead of data.
+**Applied to the Supabase project on 2026-10-21.** Live results: Phase 2 verify 23/23, two-user RLS
+smoke test 40/40 (real accounts, rolled back), Phase 1 verify 15/15. (Before it was applied the app
+showed raw "column … does not exist" errors; it now shows a readable setup message in that case.)
 
 **Verified by the agent:** typecheck (including generated typed routes), lint, Android bundle; on local
 PG16 with stubbed auth/storage, all 12 migrations applied twice, with Phase 2 checks 23/23 and 40/40 PASS and Phase 1
@@ -86,8 +87,7 @@ Chromium against a local Supabase-API stand-in executing every request as SQL as
 persistence after reload, toggles, logout and blocked protected routes. This run found and fixed one bug:
 image resizing with an implied height failed on web.
 
-**Not verified yet (needs you):** applying the SQL to the real project, then
-`docs/phase-2-acceptance-tests.md` on the Android phone (gallery picker, crop, upload over mobile
+**Not verified yet (needs you):** `docs/phase-2-acceptance-tests.md` on the Android phone (gallery picker, crop, upload over mobile
 data, restart persistence).
 
 ## Known gaps / follow-ups

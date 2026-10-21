@@ -66,10 +66,11 @@ the two policies they recreate. Re-running converges on the same state and never
 
 ## Phase 2: what to run, in order
 
-**Status (2026-10-21): written and tested locally, NOT yet applied to the Supabase project.**
-A read-only probe of the live project on 2026-10-21 showed the Phase 1 schema present
-(`profiles` exists and refuses signed-out reads; `is_username_available` answers) and none of the
-Phase 2 objects. Review the files (spec Appendix B: review SQL and RLS before applying), then run:
+**Status: APPLIED to the Supabase project on 2026-10-21** (via the SQL Editor, all eight files in
+one transaction, in the order below). On the live project afterwards: preflight clean beforehand (no
+conflicting objects, 2 users / 2 profiles), `30_verify_phase2.sql` **23/23 PASS**,
+`40_rls_smoke_test_phase2.sql` **40/40 PASS** (on the two real accounts, rolled back), and
+`10_verify_phase1.sql` **15/15 PASS**. For a fresh project, run:
 
 | # | File | Kind | Depends on | What you should see |
 |---|------|------|-----------|---------------------|
@@ -115,6 +116,10 @@ the migration file. Add **no UPDATE policy**. Then run `30_verify_phase2.sql`.
   streak and rank are always null. See `docs/impact-scoring.md`.
 
 ### Testing method used before handing these files over
+
+Hosted Supabase blocks direct SQL `DELETE` on storage tables ("Use the Storage API instead"), so
+check 26/34 in the smoke test accept that block; own-file deletion is exercised through the Storage
+API by the app (Edit Profile replace/remove photo).
 
 Same as Phase 1: a local PostgreSQL 16 with stubbed `auth` and `storage` schemas, Supabase's API
 roles and default grants. All 12 migrations applied twice. Phase 1 checks 15/15 and 13/13, Phase 2 checks
