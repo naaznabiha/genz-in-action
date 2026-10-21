@@ -1,4 +1,3 @@
-import { toReadableAuthError } from "@/lib/auth-errors";
 import { ProfileSaveError, toProfileSaveError, toReadableDataError } from "@/lib/profile-errors";
 import { requireSupabaseConfig, supabase } from "@/lib/supabase";
 import {
@@ -16,7 +15,7 @@ const AVATAR_BUCKET = "avatars";
 export async function fetchProfile(userId: string): Promise<Profile | null> {
   requireSupabaseConfig();
   const { data, error } = await supabase.from("profiles").select(PROFILE_COLUMNS).eq("id", userId).maybeSingle();
-  if (error) throw new Error(toReadableAuthError(error));
+  if (error) throw new Error(toReadableDataError(error));
   return data as Profile | null;
 }
 

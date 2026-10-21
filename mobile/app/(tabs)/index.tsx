@@ -27,7 +27,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { data: profile, isPending, isError, refetch } = useMyProfile();
+  const { data: profile, isPending, isError, error: profileError, refetch } = useMyProfile();
   const { data: tags } = useMyProfileTags();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -58,13 +58,13 @@ export default function HomeScreen() {
           <GenzLogo size="md" variant="mark" />
           <View style={styles.flex}>
             <AppText style={styles.welcome} color={Colors.text3}>
-              Welcome back,
+              {profile ? "Welcome back," : "Welcome back"}
             </AppText>
             {isPending ? (
               <Skeleton width={120} height={18} />
-            ) : (
+            ) : !profile ? null : (
               <AppText style={styles.name} numberOfLines={1} accessibilityRole="header">
-                {profile?.display_name ?? "there"}
+                {profile.display_name}
               </AppText>
             )}
           </View>
@@ -92,7 +92,7 @@ export default function HomeScreen() {
       {isError ? (
         <Pressable onPress={() => void refetch()} accessibilityRole="button" style={styles.errorBanner}>
           <AppText variant="caption" color={Colors.red}>
-            Couldn&apos;t load your profile. Tap to retry.
+            Couldn&apos;t load your profile. {profileError?.message} Tap to retry.
           </AppText>
         </Pressable>
       ) : null}

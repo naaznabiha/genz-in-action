@@ -72,7 +72,9 @@ export function toProfileSaveError(error: unknown): ProfileSaveError {
 /** Readable message for any other Phase 2 data error (settings, impact, tags). */
 export function toReadableDataError(error: unknown): string {
   const { code, text } = parts(error);
-  if (code === "PGRST205" || code === "PGRST202" || text.includes("schema cache")) {
+  // PGRST205 missing table, PGRST202 missing function, 42703 missing column
+  // (e.g. profiles.avatar_path before the Phase 2 migrations are applied).
+  if (code === "PGRST205" || code === "PGRST202" || code === "42703" || text.includes("schema cache")) {
     return "The server isn't fully set up yet (Phase 2 database changes are missing). Run the Phase 2 SQL in supabase/README.md.";
   }
   return toReadableAuthError(error);
