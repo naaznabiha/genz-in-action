@@ -6,7 +6,7 @@ _Phase 2, 2026-10-21. Spec §13 and §18 ("Impact scoring" is an open product de
 
 | Built in Phase 2 (plumbing only) | Not built: needs product approval |
 |---|---|
-| `activity_events`: append-only ledger. Rows can't be updated, deleted or truncated, except when the user's whole profile is deleted. | Which actions qualify (`activity_event_types` is **empty**). |
+| `activity_events`: append-only ledger. Rows can't be updated, deleted or truncated, except when the user's whole profile is deleted. | Which actions qualify and their weights. Phase 3 records `post_created`, `post_liked`, `comment_created`, `user_followed` (D32), but none carry points. |
 | `record_activity_event()`: the only write path. Not callable by the app (`anon`/`authenticated`). Only trusted triggers/functions and `service_role` can call it. It has an optional dedupe key so a retried trigger can't double-count. | Points per action (`impact_event_weights` is **empty**). |
 | `impact_scoring_versions` + `impact_event_weights`: versioned config, hidden from the API, writable only by migrations. | Week start day and time zone (stored per version, and no version exists yet). |
 | `get_my_impact_summary()`: for the caller only, computed at read time. It sums the weights of the latest **approved** version over that version's week. | Streak cadence: the function always returns `streak = null`. |

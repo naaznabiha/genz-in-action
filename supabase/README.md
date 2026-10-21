@@ -129,6 +129,58 @@ The real project must still be verified with the steps above and `docs/phase-2-a
 
 ---
 
+## Phase 3: what to run, in order
+
+Ten migrations, run in filename order after Phase 2. All are safe to re-run; none deletes data.
+
+| # | File | Kind | What you should see |
+|---|------|------|---------------------|
+| Q0 | `checks/45_preflight_phase3.sql` | read-only | Row 0 `OK`; every table / bucket / function row `OK`. |
+| Q1 | `migrations/20261021120000_social_graph_tables.sql` | schema | Success (notices "does not exist, skipping" are normal). |
+| Q2 | `migrations/20261021120100_visibility_helpers.sql` | functions + 3 policies replaced | Success. |
+| Q3 | `migrations/20261021120200_posts.sql` | schema | Success. |
+| Q4 | `migrations/20261021120300_post_media.sql` | schema + private bucket + storage policies | Success. |
+| Q5 | `migrations/20261021120400_hashtags.sql` | schema | Success. |
+| Q6 | `migrations/20261021120500_post_interactions.sql` | schema | Success. |
+| Q7 | `migrations/20261021120600_notifications.sql` | schema | Success. |
+| Q8 | `migrations/20261021120700_social_triggers.sql` | event types + triggers | Success. |
+| Q9 | `migrations/20261021120800_post_rpcs.sql` | functions | Success. |
+| Q10 | `migrations/20261021121000_follow_block_rpcs.sql` | functions + trigger | Success. |
+| Q11 | `checks/50_verify_phase3.sql` | read-only | 18 rows, **all `PASS`**. |
+| Q12 | `checks/70_rls_smoke_test_phase3.sql` | test (rolled back) | 49 rows, **all `PASS`** (needs two accounts). |
+| Q13 | Phase 1 + 2 checks (`10`, `20`, `30`, `40`) | read-only / tests | Still all `PASS`. |
+
+**Order on re-runs:** `20261021120100_visibility_helpers.sql` replaces the profile / tag / badge read
+policies with block-aware ones. If you ever re-run a Phase 1 or Phase 2 file, re-run the Phase 3
+files afterwards (check 9 in `50_verify_phase3.sql` catches this).
+
+### What the Phase 3 schema contains
+
+- **Social graph**: `follows`, `follow_requests`, `blocks`. Written only by `follow_user`, `unfollow_user`,
+  `accept_follow_request`, `reject_follow_request`, `block_user`, `unblock_user` (spec §11 rules
+  enforced inside). Blocks are visible only to the blocker.
+- **Shared visibility helpers** used by every policy: own content, or not blocked and (public or
+  followed). Private accounts' identity stays visible; their content does not (D29).
+- **Posts**: column-level grants (no client-written counters/timestamps), "Edited" via a content-only
+  `updated_at` trigger, author `ON DELETE RESTRICT` (D31).
+- **Post photos**: private `post-media` bucket, own-folder uploads, no overwrites, readable only with
+  the post; `post_media` row must point at an existing file in the author's folder.
+- **Hashtags** detected from title/body by trigger.
+- **Likes / saves / comments** with trusted counters (`like_count`, `comment_count`) kept by triggers;
+  one like per user per post (primary key).
+- **Notifications** (like / comment / follow / follow_request / follow_accepted) and **activity events**
+  (`post_created`, `post_liked`, `comment_created`, `user_followed`) created only by triggers (D32).
+- **RPCs**: `create_post`, `update_post`, `get_posts` (feed / user / single / featured; one request per
+  page with authors, counters, liked/saved), `get_profile_summary`, `get_my_follow_requests`,
+  `get_my_blocked_users`, `get_suggested_people`.
+
+### Hosted-Supabase note
+
+Direct SQL deletes on storage tables are blocked by Supabase ("Use the Storage API instead"). The app
+deletes post photos and avatars through the Storage API; the smoke test never deletes storage rows.
+
+---
+
 ## Manual dashboard steps (not done by any SQL file)
 
 These are settings in the Supabase Dashboard. The SQL files cannot change them.
@@ -188,7 +240,7 @@ The files already follow CLI conventions (`supabase/migrations/<timestamp>_<name
    ```
    supabase migration repair --status applied 20261018120000 20261018120100 20261018120200 20261018120300
    ```
-   (Add the eight `20261021…` versions too once you have run the Phase 2 files.)
+   (Add the eight Phase 2 `202610211000…` and ten Phase 3 `202610211200…/121000` versions too once applied.)
 4. Check `supabase migration list` shows local and remote in sync.
 5. From then on, create new migrations with `supabase migration new <name>`.
 

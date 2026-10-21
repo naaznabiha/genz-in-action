@@ -17,6 +17,7 @@ import { Colors, Radius, Spacing } from "@/constants/theme";
 import { useAuth } from "@/hooks/use-auth";
 import { useMyProfile } from "@/hooks/use-profile";
 import { useMySettings, useSetNotifyActivity, useSetPrivateAccount } from "@/hooks/use-settings";
+import { useFollowRequests } from "@/hooks/use-social";
 import { avatarPublicUrl } from "@/services/profile";
 
 /**
@@ -24,7 +25,8 @@ import { avatarPublicUrl } from "@/services/profile";
  * Only working controls are actionable. Get Verified and Language are labelled
  * "Coming soon" (spec §18 verification undefined; no localisation yet).
  * Push / email notification switches and Data Sharing are intentionally absent
- * (not MVP / no defined purpose — decision D18).
+ * (not MVP / no defined purpose — decision D18). Private Account is enforced by
+ * the database from Phase 3 (follow approval, hidden posts).
  */
 export default function SettingsScreen() {
   const router = useRouter();
@@ -34,6 +36,8 @@ export default function SettingsScreen() {
   const settings = useMySettings();
   const setNotify = useSetNotifyActivity();
   const setPrivate = useSetPrivateAccount();
+  const requests = useFollowRequests();
+  const requestCount = requests.data?.length ?? 0;
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -44,7 +48,11 @@ export default function SettingsScreen() {
 
   const onTogglePrivate = (value: boolean) =>
     setPrivate.mutate(value, {
-      onSuccess: () => toast.show(value ? "Your account is now private" : "Your account is now public", "success"),
+      onSuccess: () =>
+        toast.show(
+          value ? "Your account is now private" : "Your account is now public. Pending requests were accepted.",
+          "success",
+        ),
       onError: (e) => toast.show(e instanceof Error ? e.message : "Couldn't save your privacy setting.", "error"),
     });
 
@@ -129,7 +137,7 @@ export default function SettingsScreen() {
 
       <SettingSection
         title="Privacy & Security"
-        footnote="Follow approval for private accounts starts when following launches. Your choice is saved now."
+        footnote="Private: only people you approve can see your posts. Switching back to public accepts all pending requests."
       >
         <SettingRow
           kind="toggle"
@@ -139,6 +147,13 @@ export default function SettingsScreen() {
           value={p?.is_private ?? false}
           disabled={!p || setPrivate.isPending}
           onValueChange={onTogglePrivate}
+        />
+        <SettingRow
+          kind="link"
+          icon={<ShieldIcon size={16} color={Colors.gold} />}
+          label="Follow Requests"
+          subtitle={requests.isPending ? "Loading…" : requestCount === 0 ? "No pending requests" : `${requestCount} waiting for approval`}
+          onPress={() => router.push("/settings/follow-requests")}
         />
         <SettingRow
           kind="link"

@@ -65,6 +65,10 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
         <Stack.Screen name="settings/edit-profile" />
         <Stack.Screen name="settings/blocked-users" />
         <Stack.Screen name="settings/help" />
+        <Stack.Screen name="settings/follow-requests" />
+        <Stack.Screen name="post/[id]" />
+        <Stack.Screen name="post/edit/[id]" />
+        <Stack.Screen name="user/[id]" />
         <Stack.Screen name="search" />
         <Stack.Screen name="notifications" />
         <Stack.Screen name="dev/ui-kit" />

@@ -59,6 +59,11 @@ export function useSetPrivateAccount() {
     onError: (_error, _value, context) => {
       if (context?.previous) queryClient.setQueryData(profileKeys.detail(user!.id), context.previous);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: profileKeys.detail(user!.id), exact: true }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: profileKeys.detail(user!.id), exact: true });
+      // Privacy changes who can see posts and may auto-accept pending requests.
+      void queryClient.invalidateQueries({ queryKey: ["social"] });
+      void queryClient.invalidateQueries({ queryKey: ["posts"] });
+    },
   });
 }

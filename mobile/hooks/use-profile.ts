@@ -71,6 +71,9 @@ export function useUpdateMyProfile() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: profileKeys.detail(user.id), exact: true }),
         queryClient.invalidateQueries({ queryKey: profileKeys.tags(user.id) }),
+        // Profile headers (get_profile_summary) and post cards show name/username/photo.
+        queryClient.invalidateQueries({ queryKey: ["social"] }),
+        queryClient.invalidateQueries({ queryKey: ["posts"] }),
       ]);
     },
   });

@@ -1,6 +1,4 @@
 import { usePreventRemove, useNavigation } from "@react-navigation/native";
-import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
-import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
@@ -19,9 +17,9 @@ import { useToast } from "@/components/ui/toast";
 import { Colors, Spacing } from "@/constants/theme";
 import { useAuth } from "@/hooks/use-auth";
 import { useMyProfile, useMyProfileTags, useTagCatalogue, useUpdateMyProfile } from "@/hooks/use-profile";
-import { ProfileSaveError, toProfileSaveError, type ProfileField } from "@/lib/profile-errors";
+import { pickAndPrepareImage } from "@/lib/image";
+import { toProfileSaveError, type ProfileField } from "@/lib/profile-errors";
 import {
-  AVATAR_MAX_BYTES,
   BIO_MAX,
   DISPLAY_NAME_MAX,
   LOCATION_MAX,
@@ -190,34 +188,10 @@ function EditProfileForm({ profile, currentTags, catalogue }: { profile: Profile
   // ----- photo -----
   const pickPhoto = async () => {
     clearServerError("photo");
+    setProcessingPhoto(true);
     try {
-      // The system photo picker needs no media-library permission on Android 13+ / iOS 14+.
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 1,
-      });
-      if (result.canceled || !result.assets?.[0]) return;
-      const asset = result.assets[0];
-      setProcessingPhoto(true);
-
-      // Normalise every pick (HEIC, PNG, huge camera photos) to a small square-ish JPEG.
-      // Both target dimensions are passed explicitly: letting the library derive one
-      // (`height: null`) fails on web, and explicit sizes behave the same everywhere.
-      const context = ImageManipulator.manipulate(asset.uri);
-      if (asset.width > 0 && asset.height > 0) {
-        const scale = Math.min(1, AVATAR_SIZE / Math.max(asset.width, asset.height));
-        context.resize({ width: Math.round(asset.width * scale), height: Math.round(asset.height * scale) });
-      }
-      const image = await context.renderAsync();
-      const output = await image.saveAsync({ format: SaveFormat.JPEG, compress: 0.85, base64: true });
-
-      if (!output.base64) throw new Error("The photo could not be read. Try another one.");
-      if (output.base64.length * 0.75 > AVATAR_MAX_BYTES) {
-        throw new ProfileSaveError("That photo is larger than 5 MB. Choose a smaller one.", "photo");
-      }
-      if (mounted.current) setPhoto({ kind: "new", uri: output.uri, base64: output.base64 });
+      const picked = await pickAndPrepareImage({ maxEdge: AVATAR_SIZE, square: true });
+      if (picked && mounted.current) setPhoto({ kind: "new", uri: picked.uri, base64: picked.base64 });
     } catch (error) {
       const message = error instanceof Error ? error.message : "The photo could not be opened.";
       if (mounted.current) setServerErrors((prev) => ({ ...prev, photo: message }));
