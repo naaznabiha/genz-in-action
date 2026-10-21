@@ -63,7 +63,7 @@ begin
   select p.is_private into target_private from public.profiles p where p.id = p_target;
   if target_private is null or public.is_blocked_between(uid, p_target) then
     -- Same answer for "does not exist" and "blocked": no block detection.
-    raise exception using errcode = 'P0002', message = 'GENZ_USER_NOT_FOUND: that account is not available';
+    raise exception using errcode = 'PT404', message = 'GENZ_USER_NOT_FOUND: that account is not available';
   end if;
 
   if exists (select 1 from public.follows f where f.follower_id = uid and f.following_id = p_target) then
@@ -115,7 +115,7 @@ begin
   end if;
   delete from public.follow_requests where requester_id = p_requester and target_id = uid;
   if not found then
-    raise exception using errcode = 'P0002', message = 'GENZ_REQUEST_NOT_FOUND: that request no longer exists';
+    raise exception using errcode = 'PT404', message = 'GENZ_REQUEST_NOT_FOUND: that request no longer exists';
   end if;
   if public.is_blocked_between(uid, p_requester) then
     return;   -- request removed; a block wins
@@ -191,7 +191,7 @@ begin
     raise exception using errcode = '22023', message = 'GENZ_BLOCK_SELF: you cannot block yourself';
   end if;
   if not exists (select 1 from public.profiles p where p.id = p_target) then
-    raise exception using errcode = 'P0002', message = 'GENZ_USER_NOT_FOUND: that account is not available';
+    raise exception using errcode = 'PT404', message = 'GENZ_USER_NOT_FOUND: that account is not available';
   end if;
 
   insert into public.blocks (blocker_id, blocked_id) values (uid, p_target)

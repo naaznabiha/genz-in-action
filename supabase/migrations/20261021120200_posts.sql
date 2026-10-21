@@ -51,6 +51,12 @@ create table if not exists public.posts (
 create index if not exists posts_feed_idx on public.posts (created_at desc, id desc);
 create index if not exists posts_author_feed_idx on public.posts (author_id, created_at desc, id desc);
 create index if not exists posts_category_feed_idx on public.posts (category, created_at desc, id desc);
+-- Spec §15 M7: "search indexes should be created when underlying tables are
+-- introduced". Full-text index for Phase 4 post search; 'simple' config so it
+-- works for any language and keeps hashtags/usernames intact. Phase 4 queries
+-- must use exactly this expression to hit the index.
+create index if not exists posts_search_idx
+  on public.posts using gin (to_tsvector('simple', title || ' ' || body));
 
 comment on table public.posts is 'GenZ in Action: user posts. Visible per public.can_view_author_content(author_id).';
 

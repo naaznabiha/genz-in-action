@@ -113,14 +113,27 @@ checks as (
          and exists (select 1 from pg_trigger where tgname = 'comments_set_edited_at'),
          ''
   union all
-  select 17, 'feed indexes for cursor pagination',
+  select 17, 'feed + search indexes (cursor pagination, full-text)',
          to_regclass('public.posts_feed_idx') is not null and to_regclass('public.posts_author_feed_idx') is not null
-         and to_regclass('public.posts_category_feed_idx') is not null,
+         and to_regclass('public.posts_category_feed_idx') is not null and to_regclass('public.posts_search_idx') is not null,
          ''
   union all
   select 18, 'private → public accepts pending requests (trigger present)',
          exists (select 1 from pg_trigger where tgname = 'profiles_privacy_changed'),
          ''
+  union all
+  select 19, 'is_blocked_between not callable through the API',
+         not has_function_privilege('authenticated', 'public.is_blocked_between(uuid,uuid)', 'EXECUTE')
+         and not has_function_privilege('anon', 'public.is_blocked_between(uuid,uuid)', 'EXECUTE'),
+         ''
+  union all
+  select 20, 'hashtags readable only via visible posts',
+         exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'hashtags'
+                  and policyname = 'hashtags_select_visible' and qual like '%post_hashtags%')
+         and not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'hashtags'
+                          and qual = 'true'),
+         coalesce((select string_agg(policyname || ': ' || qual, '; ') from pg_policies
+                    where schemaname = 'public' and tablename = 'hashtags'), '')
 )
 select check_name, case when ok then 'PASS' else 'FAIL' end as status, coalesce(detail, '') as detail
 from checks

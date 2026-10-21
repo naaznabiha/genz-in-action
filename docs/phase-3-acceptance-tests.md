@@ -34,7 +34,9 @@ private account in Settings. Tick a box only when you have seen the result yours
 - [ ] Fully close both apps and reopen → like and comment counts are still correct.
 - [ ] B cannot see ••• (edit/delete) on A's post, or Edit/Delete on A's comments.
 - [ ] Share icon → the phone's share sheet shows the title, an excerpt and a link. On a phone with Expo Go running
-      the project, opening that link opens the post.
+      the project, opening that link opens the post. Note: many chat apps do not make `exp://` / `genzinaction://`
+      links tappable (they only link `https://`); if so, copy the link into the phone's browser to test it.
+      Clickable links for everyone need a web domain (open decision, see `docs/decisions.md`).
 
 ## Follow + privacy (FR-10, FR-11, spec §5.6)
 - [ ] B: open A's profile (tap the name on a post) → **Follow** → it changes to **Following** immediately; A's Followers count goes up.
@@ -52,10 +54,11 @@ private account in Settings. Tick a box only when you have seen the result yours
 - [ ] A: Settings → **Blocked Users** lists B → **Unblock** → confirm → empty list. Follows are not restored.
 
 ## Security (spec §12, "even through the API")
-- [ ] `supabase/checks/50_verify_phase3.sql` → 18/18 PASS.
-- [ ] `supabase/checks/70_rls_smoke_test_phase3.sql` → 49/49 PASS. This covers: no posting as someone else, no counter tampering,
-      double-like ignored, private posts / comments / photos hidden from non-followers in tables and RPCs,
-      no follow without approval, block rules, cascade on delete, and no access when signed out.
+- [ ] `supabase/checks/50_verify_phase3.sql` → 20/20 PASS. (Already run on the live project 2026-10-21: 20/20.)
+- [ ] `supabase/checks/70_rls_smoke_test_phase3.sql` → 52/52 PASS. (Already run on the live project 2026-10-21: 52/52.) This covers: no posting as someone else, no counter tampering,
+      double-like ignored, private posts / comments / photos / hashtag text hidden from non-followers in tables and RPCs,
+      no follow without approval, block rules (including: nobody can query whether two other people blocked each other),
+      cascade on delete, and no access when signed out.
 - [ ] Phase 1 and 2 checks (`10`, `20`, `30`, `40`) still all PASS.
 
 ## Regression

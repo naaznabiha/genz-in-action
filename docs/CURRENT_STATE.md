@@ -1,6 +1,6 @@
 # Current state
 
-_Last updated: 2026-10-21 (Phase 3 implementation)_
+_Last updated: 2026-10-21 (Phase 3 audit, fixes and live database apply)_
 
 Phase numbering follows the code comments and `decisions.md`:
 **Phase 0** = foundation + UI kit (spec M0) · **Phase 1** = auth slice (spec M1 + M2) ·
@@ -90,7 +90,7 @@ image resizing with an implied height failed on web.
 **Not verified yet (needs you):** `docs/phase-2-acceptance-tests.md` on the Android phone (gallery picker, crop, upload over mobile
 data, restart persistence).
 
-## Phase 3: core social (implemented, verified locally; live apply + device testing below)
+## Phase 3: core social (implemented, audited, database applied live; awaiting device testing)
 
 Decisions taken first (your answers): D24 post fields, D25 no petition/RSVP/take-action buttons,
 D26 share = text + app link, D27 Message "coming soon". Proposed for confirmation: D28, D30, D34.
@@ -113,9 +113,26 @@ D26 share = text + app link, D27 Message "coming soon". Proposed for confirmatio
 - New dependency: `@react-native-community/datetimepicker 8.4.4` (SDK 54 version).
 
 **Database (supabase/)**: 10 migrations + 3 checks (`45`, `50`, `70`). See `supabase/README.md` → Phase 3.
+**Applied to the Supabase project on 2026-10-21.** Live results: Phase 3 verify 20/20 and two-user smoke test
+52/52 (rolled back; nothing left behind), Phase 1 15/15 + 13/13 and Phase 2 23/23 + 40/40 (no regressions).
+
+**Second audit (2026-10-21, before the live apply)** — the first attempt's own tests all passed, so the audit
+added independent checks: a line-by-line review of all ten migrations against spec §11/§12/§13.1/§15 and
+the Phase 3 brief, 20 hand-written attack probes with four accounts, and an end-to-end run through the
+**real PostgREST 12** (the first run used a hand-written API stand-in, which cannot catch PostgREST behaviour).
+Defects found and fixed (all in never-applied migrations, so edited in place):
+1. **Security**: `is_blocked_between(a, b)` was callable by any signed-in user with any two ids, so anyone could
+   learn whether two other people had blocked each other (spec: blocked people "are not told"). Now internal only.
+2. **Privacy**: `hashtags` was readable by everyone, so a tag typed only in a private account's posts leaked
+   to non-followers. Now readable only through posts the viewer may see.
+3. **Robustness**: "user/request not found" raised SQLSTATE P0002, which PostgREST returns as HTTP 500.
+   Now `PT404` → clean 404 (the app already showed a readable message; this removes false server errors).
+4. **Spec gap**: §15 M7 says search indexes are created when their tables are introduced; added a full-text
+   index on post title + body (used by the planner; Phase 4 must query the same expression).
+Regression tests for 1, 2 and 4 were added to `50_verify_phase3.sql` (now 20) and `70_rls_smoke_test_phase3.sql` (now 52).
 
 **Verified by the agent (local PG16 with stubbed auth/storage)**
-- All 22 migrations applied twice. Phase 3: verify 18/18 and two-user smoke test 49/49.
+- All 22 migrations applied twice (fresh DB). Phase 3: verify 20/20 and two-user smoke test 52/52.
   Phase 1: 15/15 and 13/13. Phase 2: 23/23 and 40/40.
 - Ad-hoc checks: pagination over 45 posts gave pages of 20/20/5 with no duplicates; category filter;
   likes don't mark "Edited" while edits do; event date only on Events; suggestions exclude self.
@@ -128,9 +145,20 @@ D26 share = text + app link, D27 Message "coming soon". Proposed for confirmatio
   including the photo file.
 - Phase 2 suite re-run on the Phase 3 app: 59/59 (no regressions). Typecheck (typed routes), lint and the
   Android bundle all pass.
+- **Audit re-run through real PostgREST 12** (web build, 4 accounts, storage stand-in enforcing bucket limits +
+  storage RLS): **56/56** Phase 3 checks — create event with photo + hashtags, edit → "Edited", feed = ONE
+  `get_posts` request + one batch photo-signing request (no per-post requests), 20-per-page cursor paging
+  (20+20+5, no duplicates), rapid like taps = 1 like, duplicate like rejected by the primary key, comment +
+  edit, save, counts and liked/saved state after reload, failed write rolls back with a message, public follow
+  instant, private follow → request → accept, non-follower blocked from private posts/comments/hashtags even
+  through the API, block both ways (+ third party cannot discover it), unblock from Settings, `/post/<id>` link
+  opens the post, category filter, People to Follow, delete cascade incl. photo file. Phase 2 regression through
+  real PostgREST: **23/23**. Featured Action verified via the API (appears once an action post has a like).
 
 **Not verified yet (needs you)**: `docs/phase-3-acceptance-tests.md` on the phone. This covers the native
-date picker, the gallery, the share sheet, and opening a shared link from another app.
+date picker, the gallery, the share sheet, and opening a shared link from another app. Note: custom-scheme
+links (`genzinaction://`, `exp://`) are often not tappable in chat apps; tappable links for everyone need a web
+domain (open decision).
 
 ## Known gaps / follow-ups
 

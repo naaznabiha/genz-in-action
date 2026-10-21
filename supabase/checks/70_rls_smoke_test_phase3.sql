@@ -293,7 +293,7 @@ begin
     state := 'none';
     begin perform public.follow_user(a);
     exception when others then state := sqlstate; end;
-    res := res || pg_temp.rr(55, 'Blocked user cannot follow/request', state = 'P0002', 'sqlstate ' || state);
+    res := res || pg_temp.rr(55, 'Blocked user cannot follow/request', state = 'PT404', 'sqlstate ' || state);
 
     select count(*) into n from public.blocks;
     res := res || pg_temp.rr(56, 'Blocked user cannot see the block row', n = 0, n || ' row(s)');
@@ -311,6 +311,31 @@ begin
     select count(*) into n from public.get_posts(p_author_id => a);
     rel := public.relationship_with(a);
     res := res || pg_temp.rr(58, 'Unblock restores visibility, not follows', n >= 1 and rel = 'none', 'posts=' || n || ' rel=' || rel);
+
+    -- ================= Private hashtags & block-check privacy (audit fixes) =================
+    reset role;
+    perform set_config('request.jwt.claims', claims_a, true);
+    set local role authenticated;
+    update public.profiles set is_private = true where id = a;
+    perform public.create_post('story', 'arts', 'Private hashtag check post', 'Only followers should ever see this tag #zzprivtagcheck91',
+                               null, null, null, null, null);
+    reset role;
+    perform set_config('request.jwt.claims', claims_b, true);
+    set local role authenticated;
+    select count(*) into n from public.hashtags where tag = 'zzprivtagcheck91';
+    res := res || pg_temp.rr(62, 'Hashtag text from a private account is hidden from non-followers', n = 0, n || ' row(s)');
+    state := 'none';
+    begin perform public.is_blocked_between(a, b); exception when others then state := sqlstate; end;
+    res := res || pg_temp.rr(63, 'Users cannot query blocks between arbitrary people', state = '42501', 'sqlstate ' || state);
+    reset role;
+    perform set_config('request.jwt.claims', claims_a, true);
+    set local role authenticated;
+    update public.profiles set is_private = false where id = a;
+    reset role;
+    perform set_config('request.jwt.claims', claims_b, true);
+    set local role authenticated;
+    select count(*) into n from public.hashtags where tag = 'zzprivtagcheck91';
+    res := res || pg_temp.rr(64, 'Same hashtag visible once the posts are visible', n = 1, n || ' row(s)');
 
     -- ================= Delete cascade =================
     reset role;

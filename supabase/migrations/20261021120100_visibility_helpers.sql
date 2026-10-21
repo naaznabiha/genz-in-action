@@ -79,11 +79,16 @@ comment on function public.is_blocked_between(uuid, uuid) is 'GenZ in Action: tr
 comment on function public.can_see_profile(uuid) is 'GenZ in Action: can the current user see this profile''s identity (not blocked either way)?';
 comment on function public.can_view_author_content(uuid) is 'GenZ in Action: can the current user see this author''s posts/comments (own, or not blocked and public-or-followed)?';
 
--- RLS policies call these as the requesting user, so authenticated needs EXECUTE.
-revoke execute on function public.is_blocked_between(uuid, uuid) from public, anon;
+-- RLS policies call can_see_profile / can_view_author_content as the requesting
+-- user, so authenticated needs EXECUTE on those two. They only ever answer about
+-- the caller's OWN relationship to a profile.
+-- is_blocked_between takes two arbitrary ids, so it must NOT be callable through
+-- the API: otherwise anyone could ask "did X block Y?" about two other people
+-- (spec: blocked people "are not told they were blocked"). It is used only
+-- inside SECURITY DEFINER functions, which run as the owner.
+revoke execute on function public.is_blocked_between(uuid, uuid) from public, anon, authenticated;
 revoke execute on function public.can_see_profile(uuid) from public, anon;
 revoke execute on function public.can_view_author_content(uuid) from public, anon;
-grant execute on function public.is_blocked_between(uuid, uuid) to authenticated;
 grant execute on function public.can_see_profile(uuid) to authenticated;
 grant execute on function public.can_view_author_content(uuid) to authenticated;
 

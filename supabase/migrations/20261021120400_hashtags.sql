@@ -95,10 +95,14 @@ grant select on table public.post_hashtags to authenticated;
 alter table public.hashtags enable row level security;
 alter table public.post_hashtags enable row level security;
 
+-- A hashtag's text is post content: it is visible only while at least one post
+-- the viewer may see uses it (post_hashtags' own RLS applies inside), so a tag
+-- typed only in a private account's posts never leaks to non-followers.
 drop policy if exists "hashtags_select_authenticated" on public.hashtags;
-create policy "hashtags_select_authenticated"
+drop policy if exists "hashtags_select_visible" on public.hashtags;
+create policy "hashtags_select_visible"
   on public.hashtags for select to authenticated
-  using (true);
+  using (exists (select 1 from public.post_hashtags ph where ph.hashtag_id = hashtags.id));
 
 drop policy if exists "post_hashtags_select_visible" on public.post_hashtags;
 create policy "post_hashtags_select_visible"

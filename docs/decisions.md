@@ -36,10 +36,15 @@
 | D32 | 2026-10-21 | Activity events now recorded by triggers: `post_created`, `post_liked` (once per post — like/unlike/like counts once; self-likes not recorded), `comment_created`, `user_followed` (once per pair). Events are append-only and not removed when undone. Still **no points** (formula unapproved, D21). Notifications created by triggers for like / comment / follow (respecting Activity Updates) and follow request / accepted (always); list UI is Phase 5. | Implemented |
 | D33 | 2026-10-21 | Phase 3 delivered as one verified checkpoint instead of separate 3a/3b commits: 3a's post rules depend on 3b's follow/block tables through the shared visibility helpers, so a 3a-only state could not enforce privacy or compile. | Implemented — note |
 | D34 | 2026-10-21 | Share count is not shown (a share sheet can't confirm a share happened, so a counter would be untrustworthy). Comment threads and comment likes out of scope (brief). Signed-out users opening a shared link land on Welcome; after logging in they start at Home (Expo Router protected routes). | Implemented — confirm |
+| D35 | 2026-10-21 | Audit fix: `is_blocked_between` is internal (no API EXECUTE). Only `can_see_profile` / `can_view_author_content`, which answer about the caller's own relationship, are callable by signed-in users. | Implemented |
+| D36 | 2026-10-21 | Audit fix: hashtag text is visible only through at least one post the viewer may see (private accounts' tags no longer leak). Phase 4 trending must count only visible posts or run as a trusted function with an explicit visibility rule. | Implemented |
+| D37 | 2026-10-21 | "Not found" errors in follow/block RPCs use SQLSTATE `PT404` (PostgREST → HTTP 404) instead of `P0002` (HTTP 500). | Implemented |
+| D38 | 2026-10-21 | Full-text index on posts, `to_tsvector('simple', title || ' ' || body)` (spec §15 M7). Phase 4 search must use this exact expression. | Implemented |
 
 ## Open decisions
 
 Resolved in Phase 1: Supabase setup (D13), session storage (D9).
 Phase 2 proposals awaiting confirmation: D15 (no Primary Cause / Website), D17 (tag list), D18 (notification preferences), D19 (public avatar bucket).
 Phase 3 proposals awaiting confirmation: D28 (feed scope, featured, suggestions), D30 (private→public auto-accept), D34 (no share count, signed-out deep links).
+Share links (D26): custom-scheme links are often not tappable in chat apps; a web domain (universal/app links + a fallback page) is needed for links that work for everyone. Decide before release.
 Still open: **impact scoring formula** (qualifying actions, weights, week, streak cadence, ranking population — `docs/impact-scoring.md`), prototype-only features (Menu, Projects Hub, Meetings, Resources, Member Directory, DMs), help/support contact, final Terms/Privacy text.

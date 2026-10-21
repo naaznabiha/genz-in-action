@@ -131,6 +131,18 @@ The real project must still be verified with the steps above and `docs/phase-2-a
 
 ## Phase 3: what to run, in order
 
+**Status: APPLIED to the Supabase project on 2026-10-21** (SQL Editor, all ten files in one transaction,
+in the order below, after a clean preflight; the exact text was checksum-verified against the locally tested
+script). Live results afterwards: `50_verify_phase3.sql` **20/20**, `70_rls_smoke_test_phase3.sql` **52/52**
+(your two real accounts, rolled back, nothing left behind), and no regressions: Phase 1 **15/15 + 13/13**,
+Phase 2 **23/23 + 40/40**.
+
+Before applying, a second audit fixed four things in these (never-applied) files: `is_blocked_between` is
+no longer callable through the API (anyone could ask whether two other people had blocked each other);
+hashtag text is readable only through posts you may see (tags typed only in a private account's posts
+leaked); "not found" errors use PostgREST's `PT404` (clean HTTP 404 instead of 500); and a full-text index
+on post title + body was added (spec §15 M7: search indexes are created with their tables).
+
 Ten migrations, run in filename order after Phase 2. All are safe to re-run; none deletes data.
 
 | # | File | Kind | What you should see |
@@ -146,8 +158,8 @@ Ten migrations, run in filename order after Phase 2. All are safe to re-run; non
 | Q8 | `migrations/20261021120700_social_triggers.sql` | event types + triggers | Success. |
 | Q9 | `migrations/20261021120800_post_rpcs.sql` | functions | Success. |
 | Q10 | `migrations/20261021121000_follow_block_rpcs.sql` | functions + trigger | Success. |
-| Q11 | `checks/50_verify_phase3.sql` | read-only | 18 rows, **all `PASS`**. |
-| Q12 | `checks/70_rls_smoke_test_phase3.sql` | test (rolled back) | 49 rows, **all `PASS`** (needs two accounts). |
+| Q11 | `checks/50_verify_phase3.sql` | read-only | 20 rows, **all `PASS`**. |
+| Q12 | `checks/70_rls_smoke_test_phase3.sql` | test (rolled back) | 52 rows, **all `PASS`** (needs two accounts). |
 | Q13 | Phase 1 + 2 checks (`10`, `20`, `30`, `40`) | read-only / tests | Still all `PASS`. |
 
 **Order on re-runs:** `20261021120100_visibility_helpers.sql` replaces the profile / tag / badge read
@@ -165,7 +177,8 @@ files afterwards (check 9 in `50_verify_phase3.sql` catches this).
   `updated_at` trigger, author `ON DELETE RESTRICT` (D31).
 - **Post photos**: private `post-media` bucket, own-folder uploads, no overwrites, readable only with
   the post; `post_media` row must point at an existing file in the author's folder.
-- **Hashtags** detected from title/body by trigger.
+- **Hashtags** detected from title/body by trigger. A hashtag's text is visible only through a post the viewer may see.
+- **Search index**: full-text GIN index on `to_tsvector('simple', title || ' ' || body)` for Phase 4 search.
 - **Likes / saves / comments** with trusted counters (`like_count`, `comment_count`) kept by triggers;
   one like per user per post (primary key).
 - **Notifications** (like / comment / follow / follow_request / follow_accepted) and **activity events**
