@@ -1,6 +1,6 @@
 # Current state
 
-_Last updated: 2026-10-21 (Phase 2 implementation)_
+_Last updated: 2026-10-21 (Phase 3 audit, fixes and live database apply)_
 
 Phase numbering follows the code comments and `decisions.md`:
 **Phase 0** = foundation + UI kit (spec M0) · **Phase 1** = auth slice (spec M1 + M2) ·
@@ -90,6 +90,76 @@ image resizing with an implied height failed on web.
 **Not verified yet (needs you):** `docs/phase-2-acceptance-tests.md` on the Android phone (gallery picker, crop, upload over mobile
 data, restart persistence).
 
+## Phase 3: core social (implemented, audited, database applied live; awaiting device testing)
+
+Decisions taken first (your answers): D24 post fields, D25 no petition/RSVP/take-action buttons,
+D26 share = text + app link, D27 Message "coming soon". Proposed for confirmation: D28, D30, D34.
+
+**App (mobile/)**
+- **Create (+ tab)**: 4-step wizard (type → content → details → preview). Includes category, title, description,
+  an optional photo (resized JPEG), live hashtag preview, location, and event date (native picker; web build
+  uses the browser's input). Edit reuses the wizard and guards unsaved changes.
+- **Home**: impact card, Featured Action and People to Follow (shown only with real data), category chips,
+  infinite feed (20/page, cursor), pull-to-refresh, skeletons, empty/error states.
+- **PostCard / Post detail**: photo (private, signed URL), badges, author, Edited label, event
+  date/location, highlighted hashtags. Like and save are optimistic and roll back with a message on failure;
+  extra taps are ignored while a request is in flight. Share sheet. ••• Edit/Delete on own posts. Flat comments
+  with edit/delete of your own.
+- **Profiles**: one `ProfileView` for own and others. Real Followers/Following/post counts, the posts list,
+  Follow / Requested / Following (confirm to unfollow or cancel), Message · Soon, ••• Block/Unblock, private
+  lock state, and a blocked state.
+- **Settings**: Follow Requests (count, accept/decline screen) and a real Blocked Users list with unblock.
+  Private Account is now enforced.
+- New dependency: `@react-native-community/datetimepicker 8.4.4` (SDK 54 version).
+
+**Database (supabase/)**: 10 migrations + 3 checks (`45`, `50`, `70`). See `supabase/README.md` → Phase 3.
+**Applied to the Supabase project on 2026-10-21.** Live results: Phase 3 verify 20/20 and two-user smoke test
+52/52 (rolled back; nothing left behind), Phase 1 15/15 + 13/13 and Phase 2 23/23 + 40/40 (no regressions).
+
+**Second audit (2026-10-21, before the live apply)** — the first attempt's own tests all passed, so the audit
+added independent checks: a line-by-line review of all ten migrations against spec §11/§12/§13.1/§15 and
+the Phase 3 brief, 20 hand-written attack probes with four accounts, and an end-to-end run through the
+**real PostgREST 12** (the first run used a hand-written API stand-in, which cannot catch PostgREST behaviour).
+Defects found and fixed (all in never-applied migrations, so edited in place):
+1. **Security**: `is_blocked_between(a, b)` was callable by any signed-in user with any two ids, so anyone could
+   learn whether two other people had blocked each other (spec: blocked people "are not told"). Now internal only.
+2. **Privacy**: `hashtags` was readable by everyone, so a tag typed only in a private account's posts leaked
+   to non-followers. Now readable only through posts the viewer may see.
+3. **Robustness**: "user/request not found" raised SQLSTATE P0002, which PostgREST returns as HTTP 500.
+   Now `PT404` → clean 404 (the app already showed a readable message; this removes false server errors).
+4. **Spec gap**: §15 M7 says search indexes are created when their tables are introduced; added a full-text
+   index on post title + body (used by the planner; Phase 4 must query the same expression).
+Regression tests for 1, 2 and 4 were added to `50_verify_phase3.sql` (now 20) and `70_rls_smoke_test_phase3.sql` (now 52).
+
+**Verified by the agent (local PG16 with stubbed auth/storage)**
+- All 22 migrations applied twice (fresh DB). Phase 3: verify 20/20 and two-user smoke test 52/52.
+  Phase 1: 15/15 and 13/13. Phase 2: 23/23 and 40/40.
+- Ad-hoc checks: pagination over 45 posts gave pages of 20/20/5 with no duplicates; category filter;
+  likes don't mark "Edited" while edits do; event date only on Events; suggestions exclude self.
+- Web build, headless Chromium, 4 accounts (public / public / private / blocker), against a local
+  Supabase-API stand-in executing each request as SQL as the signed-in user: **60/60 checks**. They cover
+  create (event + photo + hashtags), edit with Edited, the feed, the featured card and suggestions,
+  double-tap like = 1 like, save, failed like rolled back with a message, comments with edit, counts after
+  reload, trigger-created notifications and events, public follow, private request → accept, non-follower
+  blocked through the API, block both ways, unblock, deep-link path opens the post, and delete cascades
+  including the photo file.
+- Phase 2 suite re-run on the Phase 3 app: 59/59 (no regressions). Typecheck (typed routes), lint and the
+  Android bundle all pass.
+- **Audit re-run through real PostgREST 12** (web build, 4 accounts, storage stand-in enforcing bucket limits +
+  storage RLS): **56/56** Phase 3 checks — create event with photo + hashtags, edit → "Edited", feed = ONE
+  `get_posts` request + one batch photo-signing request (no per-post requests), 20-per-page cursor paging
+  (20+20+5, no duplicates), rapid like taps = 1 like, duplicate like rejected by the primary key, comment +
+  edit, save, counts and liked/saved state after reload, failed write rolls back with a message, public follow
+  instant, private follow → request → accept, non-follower blocked from private posts/comments/hashtags even
+  through the API, block both ways (+ third party cannot discover it), unblock from Settings, `/post/<id>` link
+  opens the post, category filter, People to Follow, delete cascade incl. photo file. Phase 2 regression through
+  real PostgREST: **23/23**. Featured Action verified via the API (appears once an action post has a like).
+
+**Not verified yet (needs you)**: `docs/phase-3-acceptance-tests.md` on the phone. This covers the native
+date picker, the gallery, the share sheet, and opening a shared link from another app. Note: custom-scheme
+links (`genzinaction://`, `exp://`) are often not tappable in chat apps; tappable links for everyone need a web
+domain (open decision).
+
 ## Known gaps / follow-ups
 
 - Two prototype copies exist: `design-reference/` (older, Sep 2026, referenced by `constants/theme.ts`)
@@ -105,7 +175,11 @@ data, restart persistence).
 - Awaiting product decisions: D15 (no Primary Cause/Website), D17 (tag list), D18 (notification
   preferences), D19 (public avatars), and the impact formula (`docs/impact-scoring.md`).
 - `profiles.avatar_url` is deprecated (read-only, unused). Drop it in a later deliberate migration.
-- Delete Account is not offered yet (needs a privileged Edge Function, spec §6.1).
+- Delete Account is not offered yet (needs a privileged Edge Function, spec §6.1). Accounts with posts or
+  comments can't be deleted from the dashboard until then (D31, intentional).
+- Phase 3 was one checkpoint, not 3a/3b (D33).
+- Notification list, Saved/Liked tabs, search and hashtag feeds are Phases 4–5. Hashtags are highlighted but not tappable yet.
+- A signed-out user opening a shared link lands on Welcome and starts at Home after login (D34).
 - Help & FAQ has no support contact (none defined).
 - Recording Terms acceptance (`terms_acceptances`) is deferred until legal versions exist (D12).
 - `docs/PRODUCT_SPEC.md` and root `AGENTS.md` are empty. The spec lives in `docs/GenZ-in-Action-Spec-v2.0.docx`.

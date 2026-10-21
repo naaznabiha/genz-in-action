@@ -32,8 +32,24 @@ const FAQ: { q: string; a: string }[] = [
     a: "Up to five. Tags show on your profile so people can see the causes you care about.",
   },
   {
+    q: "How do I post?",
+    a: "Tap the + tab, choose a type (Take Action, Event, Petition or Story), pick a category, write a title and description, optionally add a photo, then preview and publish. #hashtags in your text are added automatically.",
+  },
+  {
+    q: "Can I edit or delete a post?",
+    a: "Yes. Tap ••• on your own post and choose Edit or Delete. Edited posts show an \"Edited\" label. Deleting a post also removes its likes, comments and saves.",
+  },
+  {
     q: "What does Private Account do?",
-    a: "A private account will require your approval before someone can follow you and see your posts. Following launches in an upcoming update; your setting is saved now and applies then.",
+    a: "When your account is private, people must send a follow request and you approve it before they can see your posts. Everyone can still see your name, photo and bio. Manage requests in Settings → Follow Requests.",
+  },
+  {
+    q: "What happens when I block someone?",
+    a: "You stop following each other, pending requests are removed, and neither of you can see the other's profile or posts or interact with them. They aren't told. Unblock any time in Settings → Blocked Users.",
+  },
+  {
+    q: "How do I share a post?",
+    a: "Tap the share icon on a post. People with the app can open the link straight to the post; people without it see the post title and a short excerpt.",
   },
   {
     q: "How is my impact calculated?",

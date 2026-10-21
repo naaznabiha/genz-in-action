@@ -11,8 +11,16 @@ export const DISPLAY_NAME_MAX = 50;
 export const BIO_MAX = 160;
 export const LOCATION_MAX = 80;
 export const MAX_PROFILE_TAGS = 5;
-/** Avatars bucket limit (supabase/migrations/20261021100200_avatars_storage.sql). */
-export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+/** Upload limit of the avatars and post-media buckets (5 MB, JPEG/PNG). */
+export const UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
+export const AVATAR_MAX_BYTES = UPLOAD_MAX_BYTES;
+/** Post limits — mirror the CHECK constraints in public.posts / public.comments (decision D24). */
+export const POST_TITLE_MIN = 10;
+export const POST_TITLE_MAX = 100;
+export const POST_BODY_MIN = 30;
+export const POST_BODY_MAX = 2000;
+export const POST_LOCATION_MAX = 80;
+export const COMMENT_MAX = 1000;
 
 /** Length of the email code Supabase sends. Must match Auth → Providers → Email → "Email OTP Length". */
 export const EMAIL_CODE_LENGTH = 6;
