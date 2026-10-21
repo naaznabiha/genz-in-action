@@ -13,7 +13,7 @@ export const PAGE_SIZE = 20;
  * (never one call per post). Posts the viewer may not see never reach here
  * (RLS), and the bucket's own policy re-checks visibility when signing.
  */
-async function withMediaUrls(rows: PostRow[]): Promise<Post[]> {
+export async function withMediaUrls(rows: PostRow[]): Promise<Post[]> {
   const paths = rows.map((r) => r.media_path).filter((p): p is string => Boolean(p));
   const urls = new Map<string, string>();
   if (paths.length > 0) {

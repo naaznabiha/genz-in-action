@@ -102,7 +102,9 @@ begin
     res := res || pg_temp.rr(11, 'B can read the photo of a post B can see', n = 1, n || ' object(s)');
 
     select count(*) into n from storage.objects where bucket_id = 'post-media' and name = b || '/post-1700000000002.jpg';
-    select count(*) into n2 from storage.objects where bucket_id = 'post-media' and name like a || '/%' and name <> a || '/post-1700000000001.jpg';
+    -- (photos attached to A's other visible posts are legitimately readable, so only unattached ones count)
+    select count(*) into n2 from storage.objects o where o.bucket_id = 'post-media' and o.name like a || '/%' and o.name <> a || '/post-1700000000001.jpg'
+       and not exists (select 1 from public.post_media m where m.storage_path = o.name);
     res := res || pg_temp.rr(12, 'Unattached photos stay private to their uploader', n = 1 and n2 = 0, 'own=' || n || ' others_unattached=' || n2);
 
     insert into public.post_likes (post_id, user_id) values (post_a, b) on conflict do nothing;

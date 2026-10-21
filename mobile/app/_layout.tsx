@@ -70,6 +70,7 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
         <Stack.Screen name="post/edit/[id]" />
         <Stack.Screen name="user/[id]" />
         <Stack.Screen name="search" />
+        <Stack.Screen name="hashtag/[tag]" />
         <Stack.Screen name="notifications" />
         <Stack.Screen name="dev/ui-kit" />
       </Stack.Protected>

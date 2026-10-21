@@ -15,7 +15,7 @@ import {
   ShareIcon,
 } from "@/components/icons";
 import CategoryTag from "@/components/posts/category-tag";
-import PostBodyText from "@/components/posts/post-body-text";
+import PostBodyText, { HashtagText } from "@/components/posts/post-body-text";
 import PostOwnerMenu from "@/components/posts/post-owner-menu";
 import TypeBadge from "@/components/posts/type-badge";
 import AppText from "@/components/ui/app-text";
@@ -145,9 +145,7 @@ export default function PostDetailScreen() {
           <CategoryTag category={p.category} />
         </View>
 
-        <AppText style={styles.title} accessibilityRole="header">
-          {p.title}
-        </AppText>
+        <HashtagText text={p.title} style={styles.title} color={Colors.text1} accessibilityRole="header" />
 
         <Pressable onPress={() => openAuthor(p.author_id)} accessibilityRole="button" accessibilityLabel={`Open ${p.author_display_name}'s profile`} style={styles.authorRow}>
           <Avatar name={p.author_display_name} uri={avatarPublicUrl(p.author_avatar_path)} size={40} />

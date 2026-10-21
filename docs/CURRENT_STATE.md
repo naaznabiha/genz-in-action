@@ -1,6 +1,6 @@
 # Current state
 
-_Last updated: 2026-10-21 (Phase 3 audit, fixes and live database apply)_
+_Last updated: 2026-10-21 (Phase 4 discovery: implemented, verified, database applied live)_
 
 Phase numbering follows the code comments and `decisions.md`:
 **Phase 0** = foundation + UI kit (spec M0) · **Phase 1** = auth slice (spec M1 + M2) ·
@@ -160,6 +160,54 @@ date picker, the gallery, the share sheet, and opening a shared link from anothe
 links (`genzinaction://`, `exp://`) are often not tappable in chat apps; tappable links for everyone need a web
 domain (open decision).
 
+## Phase 4: discovery (implemented, database applied live; awaiting device testing)
+
+Decisions (your answers): D39 trending = 7 days, 3 × posts + likes + 2 × comments; D40 suggestions = shared
+causes → network → popularity; keep the 8 categories. Also recorded: D41 (how the discovery functions apply
+the privacy helpers) and D42 (search behaviour — proposed for confirmation).
+
+**App (mobile/)**
+- **Search** (Home 🔍, Explore search bar): one box for people, posts and #hashtags. Typing is debounced
+  (300 ms, ≥ 2 characters). The **All** tab groups results into People, Hashtags and Posts (a leading `#`
+  or `@` puts that group first). The **People / Posts / Tags** tabs each page 20 at a time. Recent searches
+  (10) are kept on the device per account. There are loading, empty and error states.
+- **Explore**: Discover (8 cause tiles → that cause's posts, paginated), Trending (ranked tags with counts +
+  Top Actions This Week, paginated), People (suggested changemakers with "N causes in common" and Follow,
+  paginated). Pull to refresh.
+- **Hashtag feed** `/hashtag/<tag>`: header with the visible post count + paginated posts. Every highlighted
+  `#tag` in a post's text or title is tappable, as are trending and search results.
+- **Home**: "📈 Trending Right Now" (top 5, hidden when empty) and "People to Follow" now use the new
+  ranking; both have "See all →" into Explore.
+- Discovery post lists share the post cache, so likes/saves/deletes update everywhere. Follow/block refresh
+  people lists and tag counts.
+
+**Database (supabase/)**: 5 migrations + 3 checks (`75`, `80`, `90`). See `supabase/README.md` → Phase 4.
+**Applied to the Supabase project on 2026-10-21** after a clean preflight, with checksum-verified text.
+Live: Phase 4 verify **8/8**, two-user smoke test **28/28** (rolled back, nothing left behind); Phase 3
+verify **20/20** and smoke test **52/52** after correcting one Phase 3 test (row 12 wrongly counted the photo
+of a real, visible post as "unattached"; the access rule itself was right and is re-verified live).
+
+**Performance finding fixed during the phase**: the first version used RLS for visibility. Postgres then has
+to run the privacy check on every row before it may use a full-text index, so search took 230–500 ms at
+3,000 posts and grew with the table. The functions now apply the same shared helpers explicitly (D41).
+At 3,000 posts every call is ≤ 11 ms in Postgres; through the API with 600+ posts each is 6–62 ms.
+
+**Verified by the agent**
+- All 27 migrations applied twice on a fresh local database. Phase 4 checks 8/8 and 28/28 (on a small
+  database and on 3,000 posts / 66 accounts). Phases 1–3 checks all still pass (15, 13, 23, 40, 20, 52).
+- Probes with private, blocked and followed accounts: private posts and blocked users never appear in
+  search, hashtag search/feeds, trending counts, Top Actions or suggestions, in either direction. Trending
+  counts equal the visible posts. Suggestions exclude self, followed, requested and blocked. Operator and
+  wildcard characters are harmless. Signed-out callers are refused.
+- **End-to-end through real PostgREST 12 + the web build: 58/58** — username / post-word / hashtag search,
+  one request per typing pause (debounce), grouped results, People tab paging 20 → 25, recent searches
+  (saved, survive reload, run again, clear), tapping a `#tag` in a post opens its feed (not the post),
+  Home trending and People to Follow, Explore Discover / Trending / People, follow from suggestions, like
+  from search results, performance with 600+ posts. Phase 3 suite 56/56 and Phase 2 suite 23/23 still pass.
+- Typecheck, lint and the Android bundle export pass.
+
+**Not verified yet (needs you)**: `docs/phase-4-acceptance-tests.md` on the phone.
+
 ## Known gaps / follow-ups
 
 - Two prototype copies exist: `design-reference/` (older, Sep 2026, referenced by `constants/theme.ts`)
@@ -178,7 +226,8 @@ domain (open decision).
 - Delete Account is not offered yet (needs a privileged Edge Function, spec §6.1). Accounts with posts or
   comments can't be deleted from the dashboard until then (D31, intentional).
 - Phase 3 was one checkpoint, not 3a/3b (D33).
-- Notification list, Saved/Liked tabs, search and hashtag feeds are Phases 4–5. Hashtags are highlighted but not tappable yet.
+- Notification list and Saved/Liked tabs are Phase 5. (Search, Explore, hashtag feeds and trending shipped in Phase 4.)
+- Trending/suggestion weights are fixed in SQL (D39/D40); tuning means a new migration.
 - A signed-out user opening a shared link lands on Welcome and starts at Home after login (D34).
 - Help & FAQ has no support contact (none defined).
 - Recording Terms acceptance (`terms_acceptances`) is deferred until legal versions exist (D12).
