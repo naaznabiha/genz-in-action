@@ -12,8 +12,9 @@ import { Colors, FontFamily, MIN_TOUCH, Radius } from "@/constants/theme";
  * - `outline`: transparent with cyan-tinted border ("I already have an account").
  * - `ghost`: text-only cyan.
  * - `destructive`: red on dark-red surface.
+ * - `danger`: solid red, white label — confirmation of a destructive action (Settings "Yes, Log Out").
  */
-export type ButtonVariant = "primary" | "action" | "secondary" | "outline" | "ghost" | "destructive";
+export type ButtonVariant = "primary" | "action" | "secondary" | "outline" | "ghost" | "destructive" | "danger";
 export type ButtonSize = "sm" | "md" | "lg";
 
 type ButtonProps = {
@@ -36,6 +37,7 @@ const VARIANTS: Record<ButtonVariant, { bg: string; fg: string; border?: string 
   outline: { bg: "transparent", fg: Colors.text2, border: Colors.border },
   ghost: { bg: "transparent", fg: Colors.cyan },
   destructive: { bg: Colors.redSurface, fg: Colors.red, border: "rgba(244,63,94,0.3)" },
+  danger: { bg: Colors.red, fg: Colors.text1 },
 };
 
 const SIZES: Record<ButtonSize, { paddingVertical: number; paddingHorizontal: number; fontSize: number; radius: number }> = {

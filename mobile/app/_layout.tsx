@@ -61,6 +61,12 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
       </Stack.Protected>
       <Stack.Protected guard={isSignedIn}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="settings/index" />
+        <Stack.Screen name="settings/edit-profile" />
+        <Stack.Screen name="settings/blocked-users" />
+        <Stack.Screen name="settings/help" />
+        <Stack.Screen name="search" />
+        <Stack.Screen name="notifications" />
         <Stack.Screen name="dev/ui-kit" />
       </Stack.Protected>
       {/* Always reachable: Terms of Service / Privacy Policy (FR-02, FR-26). */}

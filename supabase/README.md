@@ -64,6 +64,66 @@ the two policies they recreate. Re-running converges on the same state and never
 
 ---
 
+## Phase 2: what to run, in order
+
+**Status (2026-10-21): written and tested locally, NOT yet applied to the Supabase project.**
+A read-only probe of the live project on 2026-10-21 showed the Phase 1 schema present
+(`profiles` exists and refuses signed-out reads; `is_username_available` answers) and none of the
+Phase 2 objects. Review the files (spec Appendix B: review SQL and RLS before applying), then run:
+
+| # | File | Kind | Depends on | What you should see |
+|---|------|------|-----------|---------------------|
+| P0 | `checks/05_preflight_phase2.sql` | read-only | Phase 1 | Row 0 `OK`; every other row `OK`. **If a row says `EXISTS`** and you did not run a Phase 2 file before, stop and compare. |
+| P1 | `migrations/20261021100000_profile_tags.sql` | schema + seed | Phase 1 | Success (notices "policy … does not exist, skipping" are normal). |
+| P2 | `migrations/20261021100100_user_settings.sql` | schema + insert-only backfill | Phase 1 | Success. |
+| P3 | `migrations/20261021100200_avatars_storage.sql` | storage bucket + policies | — | Success. If it fails with *must be owner of table objects*, see the note below. |
+| P4 | `migrations/20261021100300_profile_avatar_path.sql` | schema (adds a column) | P3 | Success. |
+| P5 | `migrations/20261021100400_update_my_profile_rpc.sql` | function | P1, P4 | Success. |
+| P6 | `migrations/20261021100500_activity_ledger.sql` | schema | Phase 1 | Success. |
+| P7 | `migrations/20261021100600_badges.sql` | schema | Phase 1 | Success. |
+| P8 | `migrations/20261021100700_impact_stats.sql` | schema + function | P6 | Success. |
+| P9 | `checks/30_verify_phase2.sql` | read-only | P1–P8 | 23 rows, **all `PASS`**. |
+| P10 | `checks/40_rls_smoke_test_phase2.sql` | test (rolled back) | P9 + two accounts | 40 rows, **all `PASS`**. |
+| P11 | `checks/10_verify_phase1.sql` and `checks/20_rls_smoke_test.sql` | read-only / test | — | Still all `PASS` (no Phase 1 regression). |
+
+All Phase 2 files are safe to re-run and none deletes data. **Order matters on re-runs:** re-running a
+Phase 1 file re-applies Phase 1 column grants, so afterwards re-run the Phase 2 files in order
+(check 24 in `30_verify_phase2.sql` catches this).
+
+**Storage policy note (P3).** Supabase lets the SQL Editor create policies on `storage.objects`, but
+if your project refuses, create the bucket and the three policies in *Dashboard → Storage*:
+bucket `avatars`, **Public**, size limit **5 MB**, allowed MIME types `image/jpeg, image/png`; then
+under *Policies* add INSERT / SELECT / DELETE policies for `authenticated` using the expressions in
+the migration file. Add **no UPDATE policy**. Then run `30_verify_phase2.sql`.
+
+### What the Phase 2 schema contains
+
+- **Tags** — `profile_tags` catalogue (8 seed tags from the prototype categories, decision D17) and
+  `user_profile_tags`. Max five per user is enforced by a trigger, not just the app.
+- **`user_settings`** — one row per profile (trigger + backfill), own-row read/update only.
+  Holds only `notify_activity` (decision D18). Private Account stays `profiles.is_private`.
+- **Avatars** — public bucket `avatars`, JPEG/PNG, 5 MB. Uploads only to `<your user id>/avatar-<digits>.jpg|png`;
+  no one can overwrite or delete another user's file. `profiles.avatar_path` must point at an existing
+  file in your own folder (decision D20); the old `avatar_url` column is no longer writable.
+- **`update_my_profile(...)`** — saves Edit Profile atomically, as the calling user (SECURITY INVOKER).
+- **Activity ledger** — `activity_event_types` (empty) and append-only `activity_events`. Only
+  `record_activity_event()` can append, and only trusted triggers / `service_role` may call it.
+  No events are seeded.
+- **Badges** — `badges` / `user_badges`, read-only for the app, empty.
+- **Impact** — `impact_scoring_versions` / `impact_event_weights` (empty, hidden from the API) and
+  `get_my_impact_summary()`. With no approved formula it returns `pending_approval` and no points;
+  streak and rank are always null. See `docs/impact-scoring.md`.
+
+### Testing method used before handing these files over
+
+Same as Phase 1: a local PostgreSQL 16 with stubbed `auth` and `storage` schemas, Supabase's API
+roles and default grants. All 12 migrations applied twice. Phase 1 checks 15/15 and 13/13, Phase 2 checks
+23/23 and 40/40 PASS. The app's web build was also clicked through end to end (59/59 checks) against a local
+stand-in for the Supabase API that runs every request as SQL, as the signed-in user, on that database.
+The real project must still be verified with the steps above and `docs/phase-2-acceptance-tests.md`.
+
+---
+
 ## Manual dashboard steps (not done by any SQL file)
 
 These are settings in the Supabase Dashboard. The SQL files cannot change them.
@@ -123,6 +183,7 @@ The files already follow CLI conventions (`supabase/migrations/<timestamp>_<name
    ```
    supabase migration repair --status applied 20261018120000 20261018120100 20261018120200 20261018120300
    ```
+   (Add the eight `20261021…` versions too once you have run the Phase 2 files.)
 4. Check `supabase migration list` shows local and remote in sync.
 5. From then on, create new migrations with `supabase migration new <name>`.
 
