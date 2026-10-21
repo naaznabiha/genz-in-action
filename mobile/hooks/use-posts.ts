@@ -2,6 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteD
 import { useCallback } from "react";
 
 import { useToast } from "@/components/ui/toast";
+import { discoveryKeys } from "@/hooks/discovery-keys";
 import { useAuth } from "@/hooks/use-auth";
 import { impactKeys } from "@/hooks/use-impact";
 import {
@@ -28,6 +29,10 @@ export const postKeys = {
   user: (userId: string) => ["posts", "user", userId] as const,
   detail: (postId: string) => ["posts", "detail", postId] as const,
   featured: ["posts", "featured"] as const,
+  // Discovery post lists (Phase 4) — under "posts" so likes/saves/deletes reach them too.
+  search: (query: string) => ["posts", "search", query] as const,
+  hashtag: (tag: string) => ["posts", "hashtag", tag] as const,
+  topWeek: ["posts", "top-week"] as const,
 };
 export const commentKeys = { list: (postId: string) => ["comments", postId] as const };
 
@@ -60,7 +65,7 @@ function removePostEverywhere(queryClient: QueryClient, postId: string) {
   }
 }
 
-function infinitePosts(key: readonly unknown[], fetchPage: (cursor: PostCursor | null) => Promise<PostPage>, enabled: boolean) {
+export function infinitePosts(key: readonly unknown[], fetchPage: (cursor: PostCursor | null) => Promise<PostPage>, enabled: boolean) {
   return {
     queryKey: key,
     queryFn: ({ pageParam }: { pageParam: PostCursor | null }) => fetchPage(pageParam),
@@ -96,9 +101,10 @@ export function useFeaturedPost() {
   return useQuery({ queryKey: postKeys.featured, queryFn: fetchFeaturedPost, enabled: Boolean(user) });
 }
 
-/** After a post changes, lists, impact and the author's counts must refresh. */
+/** After a post changes, lists, trending/hashtag counts, impact and the author's counts must refresh. */
 function invalidateAfterPostChange(queryClient: QueryClient, userId: string | undefined) {
   void queryClient.invalidateQueries({ queryKey: postKeys.all });
+  void queryClient.invalidateQueries({ queryKey: discoveryKeys.all });
   if (userId) {
     void queryClient.invalidateQueries({ queryKey: impactKeys.mine(userId) });
     void queryClient.invalidateQueries({ queryKey: ["social", "summary", userId] });

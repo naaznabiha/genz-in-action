@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 
+import { TrendingCompactList } from "@/components/discovery/hashtag-rows";
 import ImpactCard from "@/components/home/impact-card";
 import { BellIcon, ChevronRightIcon, SearchIcon } from "@/components/icons";
 import PostCard from "@/components/posts/post-card";
@@ -19,6 +20,8 @@ import Screen from "@/components/ui/screen";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { Colors, FontFamily, Spacing } from "@/constants/theme";
 import { useAuth } from "@/hooks/use-auth";
+import { discoveryKeys } from "@/hooks/discovery-keys";
+import { useTrendingTags } from "@/hooks/use-discovery";
 import { impactKeys } from "@/hooks/use-impact";
 import { postKeys, useFeaturedPost, useFeed } from "@/hooks/use-posts";
 import { profileKeys, useMyProfile, useMyProfileTags, useTagCatalogue } from "@/hooks/use-profile";
@@ -30,8 +33,9 @@ import type { Post } from "@/types/post";
  * Home (spec FR-06, FR-07, FR-12; prototype HomeScreen): greeting + global
  * actions, This Week's Impact, then the feed of everything the viewer may see
  * (public accounts, accounts they follow, their own posts), newest first,
- * 20 per page with infinite scroll. "Featured Action" and "People to Follow"
- * appear only when real data exists.
+ * 20 per page with infinite scroll. "Featured Action", "People to Follow"
+ * (shared causes → network → popularity, D40) and "Trending Right Now"
+ * (top 5 tags of the last 7 days, D39) appear only when real data exists.
  */
 export default function HomeScreen() {
   const router = useRouter();
@@ -42,6 +46,7 @@ export default function HomeScreen() {
   const catalogue = useTagCatalogue();
   const featured = useFeaturedPost();
   const people = useSuggestedPeople();
+  const trending = useTrendingTags(5);
   const [category, setCategory] = useState<string | null>(null);
   const feed = useFeed(category);
   const [refreshing, setRefreshing] = useState(false);
@@ -56,6 +61,7 @@ export default function HomeScreen() {
       queryClient.invalidateQueries({ queryKey: impactKeys.mine(user.id) }),
       queryClient.invalidateQueries({ queryKey: postKeys.all }),
       queryClient.invalidateQueries({ queryKey: socialKeys.suggested }),
+      queryClient.invalidateQueries({ queryKey: discoveryKeys.all }),
     ]);
     setRefreshing(false);
   };
@@ -63,6 +69,9 @@ export default function HomeScreen() {
   const onEndReached = useCallback(() => {
     if (feed.hasNextPage && !feed.isFetchingNextPage && !feed.isError) void feed.fetchNextPage();
   }, [feed]);
+
+  const openExplore = (tab: "people" | "trending") =>
+    router.navigate({ pathname: "/explore", params: { tab, at: String(Date.now()) } });
 
   const missing: string[] = [];
   if (profile && !profile.avatar_path) missing.push("a photo");
@@ -142,14 +151,29 @@ export default function HomeScreen() {
 
       {people.data && people.data.length > 0 ? (
         <View style={styles.section}>
-          <AppText variant="bodyBold" style={styles.sectionTitle}>
-            👥 People to Follow
-          </AppText>
+          <View style={styles.sectionHead}>
+            <AppText variant="bodyBold" style={styles.sectionTitle}>
+              👥 People to Follow
+            </AppText>
+            <SeeAll label="See all people to follow" onPress={() => openExplore("people")} />
+          </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.people}>
             {people.data.map((person) => (
               <PersonCard key={person.id} person={person} />
             ))}
           </ScrollView>
+        </View>
+      ) : null}
+
+      {trending.data && trending.data.length > 0 ? (
+        <View style={styles.section}>
+          <View style={styles.sectionHead}>
+            <AppText variant="bodyBold" style={styles.sectionTitle}>
+              📈 Trending Right Now
+            </AppText>
+            <SeeAll label="See all trending tags" onPress={() => openExplore("trending")} />
+          </View>
+          <TrendingCompactList tags={trending.data} />
         </View>
       ) : null}
 
@@ -218,6 +242,16 @@ export default function HomeScreen() {
         keyboardShouldPersistTaps="handled"
       />
     </Screen>
+  );
+}
+
+function SeeAll({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} hitSlop={8} accessibilityRole="button" accessibilityLabel={label}>
+      <AppText variant="captionSemiBold" color={Colors.cyan}>
+        See all →
+      </AppText>
+    </Pressable>
   );
 }
 

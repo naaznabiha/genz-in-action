@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
+import { discoveryKeys } from "@/hooks/discovery-keys";
 import { useAuth } from "@/hooks/use-auth";
 import { postKeys } from "@/hooks/use-posts";
 import {
@@ -24,6 +25,9 @@ export const socialKeys = {
   requests: ["social", "requests"] as const,
   blocked: ["social", "blocked"] as const,
   suggested: ["social", "suggested"] as const,
+  // Discovery people lists (Phase 4) — under "social" so follow/block refreshes them.
+  search: (query: string) => ["social", "search", query] as const,
+  people: ["social", "people"] as const,
 };
 
 export function useProfileSummary(userId: string | undefined) {
@@ -43,10 +47,11 @@ export function useUserTags(userId: string | undefined, enabled = true) {
   });
 }
 
-/** Who can see what may have changed: refresh profiles, people lists and every post list. */
+/** Who can see what may have changed: refresh profiles, people lists, every post list and tag counts. */
 function invalidateGraph(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: socialKeys.all });
   void queryClient.invalidateQueries({ queryKey: postKeys.all });
+  void queryClient.invalidateQueries({ queryKey: discoveryKeys.all });
 }
 
 /** Follow / Requested / Following button. `follow=false` unfollows or cancels a request. */

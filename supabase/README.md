@@ -187,6 +187,52 @@ files afterwards (check 9 in `50_verify_phase3.sql` catches this).
   page with authors, counters, liked/saved), `get_profile_summary`, `get_my_follow_requests`,
   `get_my_blocked_users`, `get_suggested_people`.
 
+## Phase 4: what to run, in order
+
+**Status: APPLIED to the Supabase project on 2026-10-21** (SQL Editor, all five files in one run after a clean
+preflight; the exact text was checksum-verified against the locally tested script). Live results afterwards:
+`80_verify_phase4.sql` **8/8**, `90_rls_smoke_test_phase4.sql` **28/28** (your two real accounts, rolled back,
+nothing left behind), and Phase 3 regressions: `50` **20/20**, `70` **52/52** (one test corrected first, see below).
+
+Five migrations, run in filename order after Phase 3. All are safe to re-run; none changes or deletes data.
+
+| # | File | Kind | What you should see |
+|---|------|------|---------------------|
+| R0 | `checks/75_preflight_phase4.sql` | read-only | Rows 1–5 `OK`; Phase 4 names `OK` (or `EXISTS` on a re-run); Postgres ≥ 12. |
+| R1 | `migrations/20261021140000_search_indexes.sql` | 3 indexes | Success. |
+| R2 | `migrations/20261021140100_query_posts.sql` | functions (`get_posts` replaced, same contract) | Success. |
+| R3 | `migrations/20261021140200_search_rpcs.sql` | functions | Success. |
+| R4 | `migrations/20261021140300_trending.sql` | function | Success. |
+| R5 | `migrations/20261021140400_suggestions.sql` | functions (`get_suggested_people` replaced, same contract) | Success. |
+| R6 | `checks/80_verify_phase4.sql` | read-only | 8 rows, **all `PASS`**. |
+| R7 | `checks/90_rls_smoke_test_phase4.sql` | test (rolled back) | 28 rows, **all `PASS`** (needs two accounts). |
+| R8 | Phase 3 checks (`50`, `70`) | read-only / test | Still all `PASS`. |
+
+### What the Phase 4 schema contains
+
+- **Indexes** (spec §13.1 / §15 M7, no separate search service): full-text GIN on profile
+  `username || ' ' || display_name`, `lower(username)` and `hashtags.tag` prefix indexes, plus the Phase 3
+  post title + body index. All use the `simple` text configuration.
+- **`query_posts`**: one keyset page (never OFFSET) of posts for the feed, a profile, a category, a hashtag,
+  a text search, Featured Action or **Top Actions This Week** (likes + 2 × comments, last 7 days).
+  `get_posts` is now a wrapper with the same columns.
+- **`search_profiles`** (exact @username → username starts with → name words), **`search_hashtags`**
+  (tags starting with the text, with visible post counts), **`get_hashtag`** (hashtag feed header),
+  **`follower_count`**. All paginated with keyset cursors.
+- **`get_trending_hashtags`**: the documented rule (D39) — last 7 days, 3 × posts + likes + 2 × comments,
+  counting only posts the viewer may see.
+- **`get_people_suggestions`**: shared causes → network → popularity (D40); never yourself, people you follow
+  or requested, or blocks either way. `get_suggested_people` (Home) now uses it.
+- **Privacy**: every function applies the shared Phase 3 helpers (`can_view_author_content`,
+  `can_see_profile`) explicitly — the same rule as the RLS policies (D41). They run as SECURITY DEFINER so
+  the indexes are used before the visibility check; at 3,000 posts every call takes ≤ 11 ms in Postgres.
+  `90_rls_smoke_test_phase4.sql` compares their output with what the RLS policies allow.
+
+**Corrected test (Phase 3 `70`, row 12):** "Unattached photos stay private" counted every other object in the
+first account's folder, so on your live data it also counted the photo of that account's real, visible post
+(which other users are meant to see). The check now counts only photos not attached to any post. Verified live:
+the other account sees its own photo, the photo of the visible post, and no unattached photo.
+
 ### Hosted-Supabase note
 
 Direct SQL deletes on storage tables are blocked by Supabase ("Use the Storage API instead"). The app
@@ -253,7 +299,7 @@ The files already follow CLI conventions (`supabase/migrations/<timestamp>_<name
    ```
    supabase migration repair --status applied 20261018120000 20261018120100 20261018120200 20261018120300
    ```
-   (Add the eight Phase 2 `202610211000…` and ten Phase 3 `202610211200…/121000` versions too once applied.)
+   (Add the eight Phase 2 `202610211000…`, ten Phase 3 `202610211200…/121000` and five Phase 4 `202610211400…` versions too.)
 4. Check `supabase migration list` shows local and remote in sync.
 5. From then on, create new migrations with `supabase migration new <name>`.
 

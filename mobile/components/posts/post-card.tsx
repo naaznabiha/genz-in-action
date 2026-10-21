@@ -15,7 +15,7 @@ import {
   ShareIcon,
 } from "@/components/icons";
 import CategoryTag from "@/components/posts/category-tag";
-import PostBodyText from "@/components/posts/post-body-text";
+import PostBodyText, { HashtagText } from "@/components/posts/post-body-text";
 import PostOwnerMenu from "@/components/posts/post-owner-menu";
 import TypeBadge from "@/components/posts/type-badge";
 import AppText from "@/components/ui/app-text";
@@ -33,10 +33,12 @@ type PostCardProps = {
   post: Post;
   /** Preview mode (composer): no navigation, no actions. */
   preview?: boolean;
+  /** Called when the post is opened (Search uses it to remember the search). */
+  onOpen?: () => void;
 };
 
 /** Port of the prototype's PostCard, backed by real data. */
-function PostCard({ post, preview = false }: PostCardProps) {
+function PostCard({ post, preview = false, onOpen }: PostCardProps) {
   const router = useRouter();
   const toast = useToast();
   const { user } = useAuth();
@@ -46,7 +48,9 @@ function PostCard({ post, preview = false }: PostCardProps) {
   const isMine = user?.id === post.author_id;
 
   const openPost = () => {
-    if (!preview) router.push({ pathname: "/post/[id]", params: { id: post.id } });
+    if (preview) return;
+    onOpen?.();
+    router.push({ pathname: "/post/[id]", params: { id: post.id } });
   };
   const openAuthor = () => {
     if (preview) return;
@@ -101,8 +105,8 @@ function PostCard({ post, preview = false }: PostCardProps) {
           ) : null}
         </View>
 
-        <AppText style={styles.title}>{post.title}</AppText>
-        <PostBodyText text={post.body} numberOfLines={preview ? undefined : 3} />
+        <HashtagText text={post.title} style={styles.title} color={Colors.text1} linkHashtags={!preview} />
+        <PostBodyText text={post.body} numberOfLines={preview ? undefined : 3} linkHashtags={!preview} />
 
         {post.event_at || post.location ? (
           <View style={styles.meta}>

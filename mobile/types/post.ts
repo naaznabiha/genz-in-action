@@ -42,8 +42,11 @@ export type PostRow = {
 /** PostRow plus a short-lived signed URL for its private photo (post-media bucket). */
 export type Post = PostRow & { media_url: string | null };
 
-/** Cursor for the next (older) page: created_at + id (spec §13.1). */
-export type PostCursor = { createdAt: string; id: string };
+/**
+ * Cursor for the next page (spec §13.1, keyset — never offsets): created_at + id,
+ * plus the score for "Top posts this week" (ordered by likes + 2×comments first).
+ */
+export type PostCursor = { createdAt: string; id: string; score?: number };
 
 export type PostPage = { posts: Post[]; nextCursor: PostCursor | null };
 
