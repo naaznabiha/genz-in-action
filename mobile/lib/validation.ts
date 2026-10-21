@@ -7,6 +7,12 @@
 export const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
 export const USERNAME_MAX = 30;
 export const DISPLAY_NAME_MAX = 50;
+/** Profile limits — mirror the CHECK constraints in public.profiles and the 5-tag trigger. */
+export const BIO_MAX = 160;
+export const LOCATION_MAX = 80;
+export const MAX_PROFILE_TAGS = 5;
+/** Avatars bucket limit (supabase/migrations/20261021100200_avatars_storage.sql). */
+export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
 /** Length of the email code Supabase sends. Must match Auth → Providers → Email → "Email OTP Length". */
 export const EMAIL_CODE_LENGTH = 6;
@@ -36,6 +42,16 @@ export function validateDisplayName(name: string): string | undefined {
   const value = name.trim();
   if (!value) return "Name is required";
   if (value.length > DISPLAY_NAME_MAX) return `At most ${DISPLAY_NAME_MAX} characters`;
+  return undefined;
+}
+
+export function validateBio(bio: string): string | undefined {
+  if (bio.trim().length > BIO_MAX) return `At most ${BIO_MAX} characters`;
+  return undefined;
+}
+
+export function validateLocation(location: string): string | undefined {
+  if (location.trim().length > LOCATION_MAX) return `At most ${LOCATION_MAX} characters`;
   return undefined;
 }
 

@@ -1,5 +1,14 @@
-import type { ReactNode } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import type { ReactElement, ReactNode } from "react";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  View,
+  type RefreshControlProps,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import { SafeAreaView, type Edge } from "react-native-safe-area-context";
 
 import { Colors, Spacing } from "@/constants/theme";
@@ -15,6 +24,8 @@ type ScreenProps = {
   /** Tab screens sit above the tab bar, so they only need the top safe area. */
   edges?: Edge[];
   contentStyle?: StyleProp<ViewStyle>;
+  /** Pull-to-refresh for scrolling screens (pass a <RefreshControl />). */
+  refreshControl?: ReactElement<RefreshControlProps>;
 };
 
 /** Standard screen wrapper: safe areas, background, keyboard avoidance and optional scrolling. */
@@ -25,6 +36,7 @@ export default function Screen({
   padded = true,
   edges = ["top"],
   contentStyle,
+  refreshControl,
 }: ScreenProps) {
   const bodyStyle = [padded && styles.padded, contentStyle];
   return (
@@ -37,6 +49,7 @@ export default function Screen({
             contentContainerStyle={[styles.scrollContent, bodyStyle]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            refreshControl={refreshControl}
           >
             {children}
           </ScrollView>
