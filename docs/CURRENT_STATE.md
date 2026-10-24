@@ -1,6 +1,6 @@
 # Current state
 
-_Last updated: 2026-10-21 (Phase 4 discovery: implemented, verified, database applied live)_
+_Last updated: 2026-10-24 (Phase 5 notifications, saved and liked: implemented, verified, database applied live)_
 
 Phase numbering follows the code comments and `decisions.md`:
 **Phase 0** = foundation + UI kit (spec M0) · **Phase 1** = auth slice (spec M1 + M2) ·
@@ -208,6 +208,47 @@ At 3,000 posts every call is ≤ 11 ms in Postgres; through the API with 600+ po
 
 **Not verified yet (needs you)**: `docs/phase-4-acceptance-tests.md` on the phone.
 
+## Phase 5: notifications, saved and liked (implemented, database applied live; awaiting device testing)
+
+Decisions (your answers): D43 likes grouped per post; D44 push deferred (spec §18). Recorded for
+confirmation: D45 (notification behaviour), D46 (Saved tab, no counts on the switch).
+
+**App (mobile/)**
+- **Notifications** (Home bell): newest first, 30 per page. Unread items are tinted, have a dot and sit under
+  "New (n)"; read ones under "Earlier". Tapping marks read and opens the post (like / comment), the person
+  (follow / accepted request) or Follow Requests. "Mark all read". Empty state "All caught up!". Pull to refresh.
+- **Bell badge** on Home: the unread count, refreshed whenever the app returns to the foreground and live through
+  Supabase Realtime while the app is open.
+- **Saved tab** (prototype "Activity"): Saved / Liked switch, each paginated with its own empty state. Unsaving or
+  unliking removes the post at once (and restores it if the request fails).
+- Community notification types will be wired up in Phase 6; unknown types already render safely.
+
+**Database (supabase/)**: 4 migrations + 3 checks (`92`, `94`, `96`). See `supabase/README.md` → Phase 5.
+**Applied to the Supabase project on 2026-10-24** (clean preflight, checksum-verified). Live: verify **8/8**,
+smoke test **25/25** + 1 skipped (grouped likes need a third account), rolled back, nothing left behind.
+
+**Found and fixed during the phase**
+1. A second "your follow request was accepted" was silently dropped by the Phase 3 de-duplication, so someone who
+   re-requested after unfollowing was never told. It now comes back as new (D45).
+2. Reading through RLS ran the block check on every notification (215 ms for 3,300). The readers now apply the
+   same rule explicitly (D41 pattern): ~30 ms per page, ~25 ms for the badge.
+
+**Verified by the agent**
+- All 31 migrations applied twice on fresh databases. Phase 5 checks 8/8 and 26/26 (three accounts) / 25 + 1
+  skipped (two accounts). Every earlier check still passes (15, 13, 23, 40, 20, 52, 8, 28). Realtime migration
+  tested against a database with the publication (idempotent).
+- Probes with four accounts: grouping, unread count, mark read/all, blocks both ways, self-likes, follow request →
+  accept, isolation (B cannot read, mark, unmark, forge or delete A's rows), Saved/Liked paging and privacy.
+- **End-to-end through real PostgREST 12 + the web build: 42/42** — like/comment/follow/request from other accounts
+  notify Alice; badge count; grouped likes; tapping each type opens the right screen and marks it read; badge
+  refreshes on returning to the foreground; Mark all read persists after a reload; accepted request notifies
+  the requester; Saved / Liked exactly match the database, newest first, 20 → 25 paging, unsave removes a post in
+  ~0.1 s and stays gone; empty states. Regressions: Phase 4 58/58, Phase 3 56/56, Phase 2 23/23.
+- Typecheck, lint and the Android bundle export pass.
+
+**Not verified yet (needs you)**: `docs/phase-5-acceptance-tests.md` on the phone, including the live Realtime
+badge (the local test bench has no Realtime server).
+
 ## Known gaps / follow-ups
 
 - Two prototype copies exist: `design-reference/` (older, Sep 2026, referenced by `constants/theme.ts`)
@@ -226,7 +267,7 @@ At 3,000 posts every call is ≤ 11 ms in Postgres; through the API with 600+ po
 - Delete Account is not offered yet (needs a privileged Edge Function, spec §6.1). Accounts with posts or
   comments can't be deleted from the dashboard until then (D31, intentional).
 - Phase 3 was one checkpoint, not 3a/3b (D33).
-- Notification list and Saved/Liked tabs are Phase 5. (Search, Explore, hashtag feeds and trending shipped in Phase 4.)
+- Push notifications are deferred (D44). Community notification types arrive with Phase 6.
 - Trending/suggestion weights are fixed in SQL (D39/D40); tuning means a new migration.
 - A signed-out user opening a shared link lands on Welcome and starts at Home after login (D34).
 - Help & FAQ has no support contact (none defined).

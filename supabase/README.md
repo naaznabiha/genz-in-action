@@ -233,6 +233,43 @@ first account's folder, so on your live data it also counted the photo of that a
 (which other users are meant to see). The check now counts only photos not attached to any post. Verified live:
 the other account sees its own photo, the photo of the visible post, and no unattached photo.
 
+## Phase 5: what to run, in order
+
+**Status: APPLIED to the Supabase project on 2026-10-24** (SQL Editor, all four files in one run after a clean
+preflight; checksum-verified against the locally tested text). Live results: `94_verify_phase5.sql` **8/8**,
+`96_rls_smoke_test_phase5.sql` **25/25** + 1 skipped (grouped likes need a third account; covered locally),
+rolled back — your real notification kept its unread state and nothing was left behind.
+
+Four migrations, run in filename order after Phase 4. All are safe to re-run; none deletes data.
+
+| # | File | Kind | What you should see |
+|---|------|------|---------------------|
+| S0 | `checks/92_preflight_phase5.sql` | read-only | Rows 1–5 `OK`; Phase 5 names `OK` (or `EXISTS` on a re-run); Realtime `OK` or `INFO`. |
+| S1 | `migrations/20261024100000_notification_rpcs.sql` | index + functions | Success. |
+| S2 | `migrations/20261024100100_notifications_realtime.sql` | adds the table to Realtime | Success (does nothing where Realtime doesn't exist). |
+| S3 | `migrations/20261024100200_saved_liked_posts.sql` | function | Success. |
+| S4 | `migrations/20261024100300_notification_resurface.sql` | replaces `create_notification` (same signature) | Success. |
+| S5 | `checks/94_verify_phase5.sql` | read-only | 8 rows, **all `PASS`**. |
+| S6 | `checks/96_rls_smoke_test_phase5.sql` | test (rolled back) | All `PASS` (needs two accounts; a third enables the grouped-likes row). |
+
+**Order on re-runs:** `20261024100300_notification_resurface.sql` replaces the Phase 3 `create_notification`.
+If you ever re-run `20261021120600_notifications.sql`, re-run S4 afterwards (check 8 in `94` catches this).
+
+### What the Phase 5 schema contains
+
+- Notifications are still created **only** by the Phase 3 triggers (no self-notifications, nothing across a
+  block, Activity Updates respected). The app can read its own rows and set `read_at` — nothing else.
+- **`get_notifications`**: your notifications, newest first, 30 per page (keyset cursor). Likes on the same post
+  are one item with the number of people (D43). Comment items carry the post to open and a comment excerpt.
+- **`get_unread_notification_count`**: the bell badge, counted the same way as the list.
+- **`mark_notification_read(key)`** / **`mark_all_notifications_read()`**: your own rows only.
+- **`get_my_post_list('saved' | 'liked')`**: the Saved tab, most recently saved/liked first, only posts you can
+  still see (deleted, now-private or blocked posts drop out).
+- **Realtime**: `notifications` is published so the badge can update instantly; Supabase only delivers a row to
+  its recipient (the same read policy).
+- **Fix**: an accepted follow request notifies again if it happens a second time (D45).
+- The readers apply the shared Phase 3 helpers explicitly (D41): 3,300 notifications → ~30 ms per page.
+
 ### Hosted-Supabase note
 
 Direct SQL deletes on storage tables are blocked by Supabase ("Use the Storage API instead"). The app
@@ -299,7 +336,7 @@ The files already follow CLI conventions (`supabase/migrations/<timestamp>_<name
    ```
    supabase migration repair --status applied 20261018120000 20261018120100 20261018120200 20261018120300
    ```
-   (Add the eight Phase 2 `202610211000…`, ten Phase 3 `202610211200…/121000` and five Phase 4 `202610211400…` versions too.)
+   (Add the eight Phase 2 `202610211000…`, ten Phase 3 `202610211200…/121000`, five Phase 4 `202610211400…` and four Phase 5 `202610241000…` versions too.)
 4. Check `supabase migration list` shows local and remote in sync.
 5. From then on, create new migrations with `supabase migration new <name>`.
 
