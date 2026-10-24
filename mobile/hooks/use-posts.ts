@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/toast";
 import { discoveryKeys } from "@/hooks/discovery-keys";
 import { useAuth } from "@/hooks/use-auth";
 import { impactKeys } from "@/hooks/use-impact";
+import { fetchMyPostList } from "@/services/notifications";
 import {
   addComment,
   createPost,
@@ -21,6 +22,7 @@ import {
   unsavePost,
   updatePost,
 } from "@/services/posts";
+import type { MyPostList } from "@/types/notification";
 import type { Post, PostCursor, PostInput, PostPage } from "@/types/post";
 
 export const postKeys = {
@@ -33,6 +35,8 @@ export const postKeys = {
   search: (query: string) => ["posts", "search", query] as const,
   hashtag: (tag: string) => ["posts", "hashtag", tag] as const,
   topWeek: ["posts", "top-week"] as const,
+  // Saved tab (Phase 5): the posts you saved / liked.
+  mine: (list: MyPostList) => ["posts", "mine", list] as const,
 };
 export const commentKeys = { list: (postId: string) => ["comments", postId] as const };
 
@@ -94,6 +98,19 @@ export function usePost(postId: string | undefined) {
     queryFn: () => fetchPost(postId as string),
     enabled: Boolean(postId),
   });
+}
+
+/** Saved tab: the posts you saved, or the posts you liked, most recent first (20 per page). */
+export function useMyPostList(list: MyPostList) {
+  const { user } = useAuth();
+  return useInfiniteQuery(infinitePosts(postKeys.mine(list), (cursor) => fetchMyPostList(list, cursor), Boolean(user)));
+}
+
+/** Removes a post from one cached list only (used when you unsave / unlike from the Saved tab). */
+function removeFromList(queryClient: QueryClient, key: readonly unknown[], postId: string) {
+  queryClient.setQueryData<InfiniteData<PostPage, PostCursor | null>>(key, (data) =>
+    data ? { ...data, pages: data.pages.map((page) => ({ ...page, posts: page.posts.filter((p) => p.id !== postId) })) } : data,
+  );
 }
 
 export function useFeaturedPost() {
@@ -168,12 +185,15 @@ export function useToggleLike() {
           p.liked_by_me === liked ? p : { ...p, liked_by_me: liked, like_count: Math.max(0, p.like_count + (liked ? 1 : -1)) },
         );
       apply(like);
+      if (!like) removeFromList(queryClient, postKeys.mine("liked"), post.id); // leaves the Liked list at once
       try {
         if (like) await likePost(post.id, user.id);
         else await unlikePost(post.id, user.id);
         void queryClient.invalidateQueries({ queryKey: impactKeys.mine(user.id) });
+        if (like) void queryClient.invalidateQueries({ queryKey: postKeys.mine("liked") });
       } catch (error) {
         apply(!like);
+        if (!like) void queryClient.invalidateQueries({ queryKey: postKeys.mine("liked") });
         toast.show(error instanceof Error ? error.message : "Couldn't update your like.", "error");
       } finally {
         pendingLikes.delete(post.id);
@@ -196,12 +216,15 @@ export function useToggleSave() {
       const save = !post.saved_by_me;
       const apply = (saved: boolean) => patchPostEverywhere(queryClient, post.id, (p) => ({ ...p, saved_by_me: saved }));
       apply(save);
+      if (!save) removeFromList(queryClient, postKeys.mine("saved"), post.id); // leaves the Saved list at once
       try {
         if (save) await savePost(post.id, user.id);
         else await unsavePost(post.id, user.id);
+        if (save) void queryClient.invalidateQueries({ queryKey: postKeys.mine("saved") });
         toast.show(save ? "Saved" : "Removed from saved", "success");
       } catch (error) {
         apply(!save);
+        if (!save) void queryClient.invalidateQueries({ queryKey: postKeys.mine("saved") });
         toast.show(error instanceof Error ? error.message : "Couldn't update saved posts.", "error");
       } finally {
         pendingSaves.delete(post.id);
