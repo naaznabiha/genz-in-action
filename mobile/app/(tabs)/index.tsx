@@ -23,6 +23,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { discoveryKeys } from "@/hooks/discovery-keys";
 import { useTrendingTags } from "@/hooks/use-discovery";
 import { impactKeys } from "@/hooks/use-impact";
+import { notificationKeys, useUnreadCount } from "@/hooks/use-notifications";
 import { postKeys, useFeaturedPost, useFeed } from "@/hooks/use-posts";
 import { profileKeys, useMyProfile, useMyProfileTags, useTagCatalogue } from "@/hooks/use-profile";
 import { socialKeys, useSuggestedPeople } from "@/hooks/use-social";
@@ -47,6 +48,7 @@ export default function HomeScreen() {
   const featured = useFeaturedPost();
   const people = useSuggestedPeople();
   const trending = useTrendingTags(5);
+  const unread = useUnreadCount();
   const [category, setCategory] = useState<string | null>(null);
   const feed = useFeed(category);
   const [refreshing, setRefreshing] = useState(false);
@@ -62,6 +64,7 @@ export default function HomeScreen() {
       queryClient.invalidateQueries({ queryKey: postKeys.all }),
       queryClient.invalidateQueries({ queryKey: socialKeys.suggested }),
       queryClient.invalidateQueries({ queryKey: discoveryKeys.all }),
+      queryClient.invalidateQueries({ queryKey: notificationKeys.unread }),
     ]);
     setRefreshing(false);
   };
@@ -99,7 +102,12 @@ export default function HomeScreen() {
         </View>
         <View style={styles.actions}>
           <IconButton icon={<SearchIcon size={18} color={Colors.text3} />} onPress={() => router.push("/search")} accessibilityLabel="Search" />
-          <IconButton icon={<BellIcon size={18} color={Colors.text3} />} onPress={() => router.push("/notifications")} accessibilityLabel="Notifications" />
+          <IconButton
+            icon={<BellIcon size={18} color={Colors.text3} />}
+            onPress={() => router.push("/notifications")}
+            accessibilityLabel="Notifications"
+            badgeCount={unread.data ?? 0}
+          />
           <Avatar name={profile?.display_name ?? "Your profile"} uri={avatarPublicUrl(profile?.avatar_path)} size={36} onPress={() => router.navigate("/profile")} />
         </View>
       </View>

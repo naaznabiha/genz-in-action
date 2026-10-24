@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tansta
 
 import { discoveryKeys } from "@/hooks/discovery-keys";
 import { useAuth } from "@/hooks/use-auth";
+import { notificationKeys } from "@/hooks/use-notifications";
 import { postKeys } from "@/hooks/use-posts";
 import {
   acceptFollowRequest,
@@ -52,6 +53,7 @@ function invalidateGraph(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: socialKeys.all });
   void queryClient.invalidateQueries({ queryKey: postKeys.all });
   void queryClient.invalidateQueries({ queryKey: discoveryKeys.all });
+  void queryClient.invalidateQueries({ queryKey: notificationKeys.all }); // handled requests / blocks change the list
 }
 
 /** Follow / Requested / Following button. `follow=false` unfollows or cancels a request. */
