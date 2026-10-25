@@ -277,6 +277,68 @@ deletes post photos and avatars through the Storage API; the smoke test never de
 
 ---
 
+## Phase 6: what to run, in order
+
+**Status: APPLIED to the Supabase project on 2026-10-24** (SQL Editor, all eight files in one run after a clean
+preflight; checksum-verified against the locally tested text). Live results: `98_verify_phase6.sql` **13/13**;
+`99_rls_smoke_test_phase6.sql` condensed run **33/33** (full 46/46 locally), rolled back — nothing left behind.
+
+Eight migrations, run in filename order after Phase 5. All are safe to re-run; none deletes data.
+
+| # | File | Kind | What you should see |
+|---|------|------|---------------------|
+| C0 | `checks/97_preflight_phase6.sql` | read-only | Rows 1–5 `OK`; Phase 6 names `OK` (or `EXISTS` on a re-run); Realtime `OK` or `INFO`. |
+| C1 | `migrations/20261024120000_communities_tables.sql` | 7 tables + `posts.community_id` | Success. |
+| C2 | `migrations/20261024120100_community_access.sql` | helpers, grants, RLS; post policies switch to `can_view_post` | Success. |
+| C3 | `migrations/20261024120200_community_media.sql` | 2 buckets + storage policies + upload checks | Success. |
+| C4 | `migrations/20261024120300_community_notifications.sql` | new types, triggers, `get_notification_list` | Success. |
+| C5 | `migrations/20261024120400_community_rpcs.sql` | create / join / leave / invite / roles / transfer / delete | Success. |
+| C6 | `migrations/20261024120500_post_audience.sql` | `create_community_post`; readers become community-aware (same signatures) | Success. |
+| C7 | `migrations/20261024120600_community_readers.sql` | one-request readers for every community screen | Success. |
+| C8 | `migrations/20261024120700_community_realtime.sql` | adds the discussion tables to Realtime | Success (does nothing where Realtime doesn't exist). |
+| C9 | `checks/98_verify_phase6.sql` | read-only | 13 rows, **all `PASS`**. |
+| C10 | `checks/99_rls_smoke_test_phase6.sql` | test (rolled back) | 46 rows, **all `PASS`** (needs two accounts). |
+
+**Order on re-runs:**
+- C6 replaces `query_posts`, `search_hashtags`, `get_hashtag`, `get_trending_hashtags` (Phase 4) and
+  `get_my_post_list` (Phase 5) with community-aware bodies. If you ever re-run one of those earlier files,
+  re-run C6 afterwards (check 8 in `98` catches this).
+- C2 replaces the Phase 3 post/comment/like/save policies. If you re-run a Phase 3 file, re-run C2 (check 7).
+- C4 replaces `create_notification` (Phase 5 S4 version + community rule). If you re-run
+  `20261024100300_notification_resurface.sql`, re-run C4.
+- `get_notifications` (Phase 5) is untouched; the app now calls `get_notification_list`.
+- `50_verify_phase3.sql` #9 and `90_rls_smoke_test_phase4.sql` #10 were updated to accept the Phase 6 rule
+  (`can_view_post`; Home leaves out community posts from communities you're not in).
+
+### What the Phase 6 schema contains
+
+- **Tables**: `communities` (name 3–60, description ≤500, optional image, public/private), `community_members`
+  (role owner/admin/member + status active/left/removed; exactly one owner), `community_invites` (one pending
+  per person), `community_messages`, `community_message_pins`, `community_message_stars`, `community_content`;
+  `posts.community_id` (NULL = Everyone).
+- **Changes only through RPCs**: communities, membership and invites (`create_community`, `update_community`,
+  `join_community`, `leave_community`, `delete_community`, `invite_to_community`, `respond_to_invite`,
+  `cancel_invite`, `set_member_role`, `remove_member`, `transfer_ownership`). Rules the app explains come back
+  as `GENZ_*` messages (private, removed, owner must transfer, has members, already a member).
+- **Written directly, decided by RLS**: messages (active members; delete own, or any as owner/admin), pins
+  (owner/admin), stars (yours only, private), content (members; delete own, or any as owner/admin).
+- **Who can read**: `can_read_community` = public, or you're an active member. Non-members of a private
+  community never read its discussion, content, members, pins, files or posts. Blocks apply everywhere.
+- **Posts** (D51): `can_view_post(author, community)` backs the posts / photos / tags / comments / likes /
+  saves policies and every post reader. General lists skip community posts from communities you're not in.
+- **Files** (D50): private `community-media` (10 MB; JPEG/PNG/PDF) readable only through a readable message or
+  content item; public `community-images` (5 MB) for cover images. A trigger checks the upload exists, its type
+  matches the declared kind and records its size.
+- **Notifications** (D52): invites, invite accepted/declined, made admin, made owner, new content. No chat
+  notifications. `get_notification_list` = Phase 5 list + community, invite status, content title.
+- **Realtime**: `community_messages` and `community_message_pins` are published; Supabase delivers rows only
+  to people the read policies allow.
+- **Performance** (3,000 posts, 600 community posts, 40 communities, 20,000 messages, local Postgres 16):
+  Home 18 ms, search 40 ms, hashtag 7 ms, trending 22 ms, Discover 2 ms, community page 3 ms, discussion page
+  10 ms, members 4 ms, content 9 ms, notifications 4 ms.
+
+---
+
 ## Manual dashboard steps (not done by any SQL file)
 
 These are settings in the Supabase Dashboard. The SQL files cannot change them.

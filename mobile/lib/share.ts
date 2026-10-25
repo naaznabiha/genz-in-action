@@ -22,3 +22,15 @@ export async function sharePost(post: { id: string; title: string; body: string 
     return false;
   }
 }
+
+/** Opens the share sheet for a community (link opens its page in the app). */
+export async function shareCommunity(community: { id: string; name: string; description: string; is_private: boolean }): Promise<boolean> {
+  const url = Linking.createURL(`/community/${community.id}`);
+  const note = community.is_private ? "It's invite-only — ask an admin for an invite." : "Join it on GenZ in Action.";
+  try {
+    await Share.share({ message: `${community.name}\n\n${community.description ? `${community.description}\n\n` : ""}${note} ${url}`, url, title: community.name });
+    return true;
+  } catch {
+    return false;
+  }
+}

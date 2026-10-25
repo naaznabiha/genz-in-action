@@ -72,6 +72,15 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
         <Stack.Screen name="search" />
         <Stack.Screen name="hashtag/[tag]" />
         <Stack.Screen name="notifications" />
+        <Stack.Screen name="community/create" />
+        <Stack.Screen name="community/[id]/index" />
+        <Stack.Screen name="community/[id]/discussion" />
+        <Stack.Screen name="community/[id]/starred" />
+        <Stack.Screen name="community/[id]/content" />
+        <Stack.Screen name="community/[id]/add-content" />
+        <Stack.Screen name="community/[id]/members" />
+        <Stack.Screen name="community/[id]/transfer" />
+        <Stack.Screen name="community-content/[id]" />
         <Stack.Screen name="dev/ui-kit" />
       </Stack.Protected>
       {/* Always reachable: Terms of Service / Privacy Policy (FR-02, FR-26). */}

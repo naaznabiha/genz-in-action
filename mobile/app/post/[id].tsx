@@ -157,6 +157,18 @@ export default function PostDetailScreen() {
             </AppText>
           </View>
         </Pressable>
+        {p.community_id && p.community_name ? (
+          <Pressable
+            onPress={() => router.push({ pathname: "/community/[id]", params: { id: p.community_id as string } })}
+            accessibilityRole="link"
+            accessibilityLabel={`Shared in ${p.community_name}. Open the community`}
+            style={styles.communityLink}
+          >
+            <AppText variant="captionSemiBold" color={Colors.cyan}>
+              in {p.community_name}
+            </AppText>
+          </Pressable>
+        ) : null}
 
         {p.event_at || p.location ? (
           <View style={styles.metaBox}>
@@ -385,6 +397,7 @@ export default function PostDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  communityLink: { alignSelf: "flex-start", paddingVertical: 2 },
   content: { paddingBottom: Spacing.xxxl * 2 },
   loading: { gap: Spacing.lg, paddingTop: Spacing.lg },
   image: { width: "100%", aspectRatio: 16 / 9, backgroundColor: Colors.elevated },

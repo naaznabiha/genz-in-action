@@ -8,13 +8,14 @@ import type { PostCursor, PostPage, PostRow } from "@/types/post";
  * Notifications (spec FR-15) and the Saved tab's Saved / Liked lists (FR-19).
  * Notifications are created only by database triggers; these calls read the
  * caller's own rows and mark them read. Privacy (own rows only, nothing from
- * blocked people) is enforced in the database.
+ * blocked people) is enforced in the database. Phase 6: the list comes from
+ * get_notification_list (Phase 5 columns + community details).
  */
 const NOTIFICATION_PAGE = 30;
 
 export async function fetchNotifications(cursor: NotificationCursor | null, limit = NOTIFICATION_PAGE): Promise<NotificationPage> {
   requireSupabaseConfig();
-  const { data, error } = await supabase.rpc("get_notifications", {
+  const { data, error } = await supabase.rpc("get_notification_list", {
     p_before_at: cursor?.createdAt ?? null,
     p_before_key: cursor?.key ?? null,
     p_limit: limit,

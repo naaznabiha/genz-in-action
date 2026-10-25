@@ -1,6 +1,6 @@
 # Current state
 
-_Last updated: 2026-10-24 (Phase 5 notifications, saved and liked: implemented, verified, database applied live)_
+_Last updated: 2026-10-24 (Phase 6 communities: implemented, verified, database applied live)_
 
 Phase numbering follows the code comments and `decisions.md`:
 **Phase 0** = foundation + UI kit (spec M0) · **Phase 1** = auth slice (spec M1 + M2) ·
@@ -249,6 +249,61 @@ smoke test **25/25** + 1 skipped (grouped likes need a third account), rolled ba
 **Not verified yet (needs you)**: `docs/phase-5-acceptance-tests.md` on the phone, including the live Realtime
 badge (the local test bench has no Realtime server).
 
+## Phase 6: communities (implemented, database applied live; awaiting device testing)
+
+Designs: 15 boards approved as drawn (https://claude.ai/artifact/EuCAXPxDah17V3Mery6vfh). Decisions (your answers):
+D48 roles, D50 uploads, D53 leave/delete, D54 scope (Projects/Meetings/Resources/Directory dropped; posts under a
+"Posts" filter; stay on SDK 54). Recorded: D47, D49. For confirmation: D51 (post audience), D52 (notifications).
+
+**App (mobile/)**
+- **Explore → Communities** (4th tab): Create a community, Invitations (Accept / Decline inline), Your communities
+  with your role, Discover (every community, PUBLIC / PRIVATE · INVITE ONLY, member count), paginated.
+- **Create / edit** a community: image, name 3–60, description ≤500, Public / Private (fixed after creation). You're the owner.
+- **Community page**: guest (public: read + Join), invited (banner with Accept / Decline + "Members only"),
+  member (Member / Share, Discussion, Content, Members, Your starred messages, About). Owner/admins can edit.
+- **Discussion**: live via Supabase Realtime, newest at the bottom, 50 per page, day separators, photo/PDF
+  attachments, pinned banner, long-press menu (Star, Pin for everyone — owner/admins, Copy, Delete).
+- **Starred** (private), **Content** (All / Posts / Photos / Documents / Text, Add content FAB, "No longer a
+  member"), **content page** (delete: author, owner, admins), **Members** (roles, Invite people sheet, pending
+  invites with Cancel, ••• Make admin / Remove admin / Make owner / Remove, Leave), **hand over ownership**,
+  sole-owner delete.
+- **Create post → "Who is this post for?"** (Everyone or one of your communities); posts show "in <community>"
+  on cards and the post page.
+- **Notifications**: invites (inline Accept / Decline), accepted / declined, made admin, made owner, new
+  content. The list now reads `get_notification_list`.
+- New packages (SDK 54 versions, in Expo Go): `expo-document-picker`, `expo-file-system`, `expo-clipboard`.
+
+**Database (supabase/)**: 8 migrations + 3 checks (`97`, `98`, `99`). See `supabase/README.md` → Phase 6.
+**Applied to the Supabase project on 2026-10-24** (clean preflight, one checksum-verified run). Live: verify
+**13/13** (Realtime publication included); smoke test **33/33** (a condensed run of `99` covering owner, member, non-member, invited, admin and signed-out cases;
+the storage, block, transfer and delete cases ran in the full 46/46 locally), rolled back — no communities left behind.
+
+**Found and fixed during the phase**
+1. Changing `get_notifications`' columns would have made the Phase 5 file fail on a re-run ("cannot change
+   return type"); the community list is a new function (`get_notification_list`) and Phase 5's stays as it was.
+2. `get_community` showed the owner's / inviter's name across a block — now hidden like every other identity.
+3. "Communities" didn't fit in the Explore tab row on narrow phones — the tabs now size to their labels.
+
+**Verified by the agent**
+- All 39 migrations applied twice on fresh databases; the eight Phase 6 files also as one transaction.
+  Phase 6 checks: verify 13/13, smoke 46/46 (owner, admin, member, non-member, invited, removed, blocked and
+  signed-out cases), rolled back with nothing left behind. Every earlier check passes; two were updated for
+  the Phase 6 rule (`50` #9, `90` #10) and still run on a pre-Phase-6 database.
+- Performance at 3,000 posts / 20,000 messages: every reader ≤ 40 ms (README → Phase 6).
+- **End-to-end through real PostgREST + the web build, four accounts: 55/55** — create public/private; Discover
+  chips; non-member locked out of the private discussion (UI and API); join public instantly; send text and a
+  PDF (size recorded by the database); member menu has no Pin; private stars; owner pins, member sees it; invite
+  → notification → inline Accept → read and post; inviter notified; audience picker → post "in <community>",
+  in the member's Home, not the non-member's, not openable by them; add content → members notified; leave →
+  "No longer a member"; owner leave → hand over → new owner notified; sole-owner delete.
+  Regressions: Phase 5 42/42, Phase 4 58/58, Phase 3 56/56 (request-count check updated: one batch request per
+  page for community labels), Phase 2 23/23.
+- Typecheck, lint and the Android bundle export pass; dependencies match SDK 54.
+
+**Not verified yet (needs you)**: `docs/phase-6-acceptance-tests.md` on phones — especially **messages
+appearing live on two phones** (the local bench has no Realtime server), real photo/PDF picking on Android, and
+opening PDFs.
+
 ## Known gaps / follow-ups
 
 - Two prototype copies exist: `design-reference/` (older, Sep 2026, referenced by `constants/theme.ts`)
@@ -267,7 +322,11 @@ badge (the local test bench has no Realtime server).
 - Delete Account is not offered yet (needs a privileged Edge Function, spec §6.1). Accounts with posts or
   comments can't be deleted from the dashboard until then (D31, intentional).
 - Phase 3 was one checkpoint, not 3a/3b (D33).
-- Push notifications are deferred (D44). Community notification types arrive with Phase 6.
+- Push notifications are deferred (D44).
+- Communities: link invites and join requests are deferred; privacy can't be changed after creation; content
+  can't be edited in the app yet (the database allows authors to edit title/text); no unread counts per community.
+- The post cards' "in <community>" label costs one extra batch request per page (readers kept their Phase 4
+  columns so earlier files stay re-runnable).
 - Trending/suggestion weights are fixed in SQL (D39/D40); tuning means a new migration.
 - A signed-out user opening a shared link lands on Welcome and starts at Home after login (D34).
 - Help & FAQ has no support contact (none defined).

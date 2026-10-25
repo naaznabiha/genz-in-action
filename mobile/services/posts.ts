@@ -16,14 +16,43 @@ export const PAGE_SIZE = 20;
 export async function withMediaUrls(rows: PostRow[]): Promise<Post[]> {
   const paths = rows.map((r) => r.media_path).filter((p): p is string => Boolean(p));
   const urls = new Map<string, string>();
-  if (paths.length > 0) {
+  const signing = async () => {
+    if (paths.length === 0) return;
     const { data, error } = await supabase.storage.from(MEDIA_BUCKET).createSignedUrls(paths, SIGNED_URL_SECONDS);
     if (!error && data) {
       for (const item of data) if (item.path && item.signedUrl) urls.set(item.path, item.signedUrl);
     }
     // A signing failure shows the post without its photo rather than failing the feed.
+  };
+  const [, communities] = await Promise.all([signing(), fetchPostCommunities(rows.map((r) => r.id))]);
+  return rows.map((r) => {
+    const c = communities.get(r.id);
+    return { ...r, media_url: r.media_path ? (urls.get(r.media_path) ?? null) : null, community_id: c?.id ?? null, community_name: c?.name ?? null };
+  });
+}
+
+/**
+ * Which community each post was shared to (Phase 6, the cards' "in <community>"
+ * label): ONE request per page. The readers keep their Phase 4 columns, so the
+ * label is looked up here; rows you can't see never come back (RLS).
+ */
+async function fetchPostCommunities(postIds: string[]): Promise<Map<string, { id: string; name: string }>> {
+  const out = new Map<string, { id: string; name: string }>();
+  if (postIds.length === 0) return out;
+  try {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("id, community:communities(id, name)")
+      .in("id", postIds)
+      .not("community_id", "is", null);
+    if (error || !data) return out; // the label is optional; never fail a feed over it
+    for (const row of data as unknown as { id: string; community: { id: string; name: string } | null }[]) {
+      if (row.community) out.set(row.id, row.community);
+    }
+  } catch {
+    /* label only */
   }
-  return rows.map((r) => ({ ...r, media_url: r.media_path ? (urls.get(r.media_path) ?? null) : null }));
+  return out;
 }
 
 type FetchPostsArgs = {
@@ -114,7 +143,10 @@ function rpcArgs(input: PostInput) {
 /** Creates the post and its photo row atomically; returns the new post id. */
 export async function createPost(input: PostInput): Promise<string> {
   requireSupabaseConfig();
-  const { data, error } = await supabase.rpc("create_post", rpcArgs(input));
+  // Audience (Phase 6): Everyone → create_post; one community you belong to → create_community_post.
+  const { data, error } = input.communityId
+    ? await supabase.rpc("create_community_post", { p_community_id: input.communityId, ...rpcArgs(input) })
+    : await supabase.rpc("create_post", rpcArgs(input));
   if (error) throw toPostError(error);
   return data as string;
 }

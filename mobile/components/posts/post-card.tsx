@@ -97,6 +97,19 @@ function PostCard({ post, preview = false, onOpen }: PostCardProps) {
               @{post.author_username} · {relativeTime(post.created_at)}
               {isEdited(post.created_at, post.updated_at) ? " · Edited" : ""}
             </AppText>
+            {post.community_name && post.community_id ? (
+              <Pressable
+                onPress={() => !preview && router.push({ pathname: "/community/[id]", params: { id: post.community_id as string } })}
+                disabled={preview}
+                hitSlop={6}
+                accessibilityRole="link"
+                accessibilityLabel={`Shared in ${post.community_name}`}
+              >
+                <AppText variant="captionSemiBold" color={Colors.cyan} numberOfLines={1}>
+                  in {post.community_name}
+                </AppText>
+              </Pressable>
+            ) : null}
           </View>
           {isMine && !preview ? (
             <Pressable onPress={() => setMenuOpen(true)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Post options" style={styles.menuButton}>

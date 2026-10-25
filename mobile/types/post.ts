@@ -40,7 +40,12 @@ export type PostRow = {
 };
 
 /** PostRow plus a short-lived signed URL for its private photo (post-media bucket). */
-export type Post = PostRow & { media_url: string | null };
+export type Post = PostRow & {
+  media_url: string | null;
+  /** The community the post was shared to (Phase 6), or null for Everyone. */
+  community_id?: string | null;
+  community_name?: string | null;
+};
 
 /**
  * Cursor for the next page (spec §13.1, keyset — never offsets): created_at + id,
@@ -62,6 +67,8 @@ export type PostInput = {
   mediaPath: string | null;
   mediaWidth: number | null;
   mediaHeight: number | null;
+  /** Audience (create only): null = Everyone, or one community you're an active member of. Editing keeps it. */
+  communityId?: string | null;
 };
 
 export type Comment = {
