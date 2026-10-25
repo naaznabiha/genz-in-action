@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 
+import { CommunitiesHeader, CommunityCard } from "@/components/communities/communities-tab";
 import CategoryGrid from "@/components/discovery/category-grid";
 import { TrendingRankedList } from "@/components/discovery/hashtag-rows";
 import ListFooter from "@/components/discovery/list-footer";
@@ -18,21 +19,24 @@ import SegmentedTabs from "@/components/ui/segmented-tabs";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { CategoryColors, Colors, FontFamily, Radius, Spacing, type CategoryId } from "@/constants/theme";
 import { discoveryKeys } from "@/hooks/discovery-keys";
+import { communityKeys, useCommunities } from "@/hooks/use-communities";
 import { usePeopleSuggestions, useTopPostsThisWeek, useTrendingTags } from "@/hooks/use-discovery";
 import { postKeys, useFeed } from "@/hooks/use-posts";
 import { socialKeys } from "@/hooks/use-social";
+import type { CommunitySummary } from "@/types/community";
 import type { PeopleSuggestion } from "@/types/discovery";
 import type { Post } from "@/types/post";
 
-type Tab = "discover" | "trending" | "people";
+type Tab = "discover" | "trending" | "people" | "communities";
 const TABS = [
   { value: "discover", label: "Discover" },
   { value: "trending", label: "Trending" },
   { value: "people", label: "People" },
+  { value: "communities", label: "Communities" },
 ] as const;
-const isTab = (v: unknown): v is Tab => v === "discover" || v === "trending" || v === "people";
+const isTab = (v: unknown): v is Tab => v === "discover" || v === "trending" || v === "people" || v === "communities";
 
-type Item = { kind: "post"; post: Post } | { kind: "person"; person: PeopleSuggestion };
+type Item = { kind: "post"; post: Post } | { kind: "person"; person: PeopleSuggestion } | { kind: "community"; community: CommunitySummary };
 
 /**
  * Explore (spec FR-25; prototype ExploreScreen):
@@ -40,6 +44,8 @@ type Item = { kind: "post"; post: Post } | { kind: "person"; person: PeopleSugge
  *  • Trending — trending hashtags (last 7 days, decision D39) and Top Actions This Week.
  *  • People   — suggested changemakers (shared causes, then network, then
  *               popularity, decision D40) with Follow buttons, paginated.
+ *  • Communities — create one, answer invitations, your communities, and
+ *               Discover (every community; identity is public, D47). Phase 6.
  * The search bar opens the full Search screen. Everything is filtered by the
  * database to what the viewer may see (private accounts, blocks).
  * Home's "See all" links open a tab directly: /explore?tab=trending|people&at=<time>.
@@ -62,15 +68,19 @@ export default function ExploreScreen() {
   const trending = useTrendingTags(10);
   const top = useTopPostsThisWeek();
   const people = usePeopleSuggestions();
+  const communities = useCommunities("discover");
 
   // Which paginated list the tab shows (the category feed only once a cause is picked).
-  const list = tab === "discover" ? (category ? categoryFeed : null) : tab === "trending" ? top : people;
+  const list =
+    tab === "discover" ? (category ? categoryFeed : null) : tab === "trending" ? top : tab === "communities" ? communities : people;
 
   const items: Item[] = useMemo(() => {
     if (tab === "people") return (people.data?.pages.flatMap((p) => p.people) ?? []).map((person) => ({ kind: "person", person }));
+    if (tab === "communities")
+      return (communities.data?.pages.flatMap((p) => p.communities) ?? []).map((community) => ({ kind: "community", community }));
     const source = tab === "trending" ? top.data : category ? categoryFeed.data : undefined;
     return (source?.pages.flatMap((p) => p.posts) ?? []).map((post) => ({ kind: "post", post }));
-  }, [tab, category, people.data, top.data, categoryFeed.data]);
+  }, [tab, category, people.data, top.data, categoryFeed.data, communities.data]);
 
   const onEndReached = useCallback(() => {
     if (list && list.hasNextPage && !list.isFetchingNextPage && !list.isError) void list.fetchNextPage();
@@ -81,6 +91,8 @@ export default function ExploreScreen() {
     await Promise.allSettled(
       tab === "people"
         ? [queryClient.invalidateQueries({ queryKey: socialKeys.people })]
+        : tab === "communities"
+          ? [queryClient.invalidateQueries({ queryKey: communityKeys.all })]
         : tab === "trending"
           ? [queryClient.invalidateQueries({ queryKey: discoveryKeys.all }), queryClient.invalidateQueries({ queryKey: postKeys.topWeek })]
           : [queryClient.invalidateQueries({ queryKey: postKeys.feed(category) })],
@@ -143,6 +155,8 @@ export default function ExploreScreen() {
         <SectionTitle style={styles.blockTop}>Top Actions This Week</SectionTitle>
       </View>
     );
+  } else if (tab === "communities") {
+    tabHeader = <CommunitiesHeader />;
   } else {
     tabHeader = (
       <View style={styles.block}>
@@ -170,7 +184,7 @@ export default function ExploreScreen() {
           Search actions, causes, people...
         </AppText>
       </Pressable>
-      <SegmentedTabs options={TABS} value={tab} onChange={setTab} />
+      <SegmentedTabs options={TABS} value={tab} onChange={setTab} compact />
       {tabHeader}
     </View>
   );
@@ -195,13 +209,15 @@ export default function ExploreScreen() {
       empty = (
         <EmptyState
           emoji="⚠️"
-          title={tab === "people" ? "Couldn't load suggestions" : "Couldn't load posts"}
+          title={tab === "people" ? "Couldn't load suggestions" : tab === "communities" ? "Couldn't load communities" : "Couldn't load posts"}
           subtitle={list.error?.message}
           action={<Button label="Try again" variant="secondary" size="md" onPress={() => void list.refetch()} />}
         />
       );
     } else if (tab === "people") {
       empty = <EmptyState emoji="👥" title="No suggestions right now" subtitle="You're following everyone we'd suggest. Check back as more people join." />;
+    } else if (tab === "communities") {
+      empty = <EmptyState emoji="🫂" title="No communities yet" subtitle="Start the first one — tap Create a community above." />;
     } else if (tab === "trending") {
       empty = <EmptyState emoji="📈" title="No posts this week yet" subtitle="The most liked and discussed posts from the last 7 days appear here." />;
     } else {
@@ -211,7 +227,9 @@ export default function ExploreScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: Item }) =>
-      item.kind === "person" ? (
+      item.kind === "community" ? (
+        <CommunityCard community={item.community} />
+      ) : item.kind === "person" ? (
         <PersonRow
           person={item.person}
           relationship="none"
@@ -233,7 +251,7 @@ export default function ExploreScreen() {
     <Screen padded={false}>
       <FlatList<Item>
         data={items}
-        keyExtractor={(i) => (i.kind === "person" ? `p:${i.person.id}` : `o:${i.post.id}`)}
+        keyExtractor={(i) => (i.kind === "person" ? `p:${i.person.id}` : i.kind === "community" ? `c:${i.community.id}` : `o:${i.post.id}`)}
         renderItem={renderItem}
         ItemSeparatorComponent={tab === "people" ? RowDivider : undefined}
         ListHeaderComponent={header}
@@ -246,7 +264,7 @@ export default function ExploreScreen() {
               hasNextPage={Boolean(list.hasNextPage)}
               itemCount={items.length}
               onRetry={() => void list.fetchNextPage()}
-              endLabel={tab === "people" ? undefined : "You're all caught up"}
+              endLabel={tab === "people" || tab === "communities" ? undefined : "You're all caught up"}
             />
           ) : null
         }

@@ -67,7 +67,8 @@ checks as (
          ''
   union all
   select 9, 'shared visibility helpers exist and are used by post/profile policies',
-         exists (select 1 from pg_policies where tablename = 'posts' and policyname = 'posts_select_visible' and qual like '%can_view_author_content%')
+         exists (select 1 from pg_policies where tablename = 'posts' and policyname = 'posts_select_visible'
+                   and (qual like '%can_view_author_content%' or qual like '%can_view_post%'))   -- Phase 6 wraps it in can_view_post (D51)
          and exists (select 1 from pg_policies where tablename = 'profiles' and policyname = 'profiles_select_authenticated' and qual like '%can_see_profile%'),
          'If the profiles row FAILS after re-running a Phase 1 file: re-run 20261021120100_visibility_helpers.sql'
   union all

@@ -106,8 +106,20 @@ begin
 
     -- query_posts agrees with the posts RLS policy (newest 50)
     select array_agg(q.id order by q.created_at desc, q.id desc) into ids from public.query_posts(p_limit => 50) q;
-    select array_agg(x.id order by x.created_at desc, x.id desc) into ids2
-      from (select p.id, p.created_at from public.posts p order by p.created_at desc, p.id desc limit 50) x;
+    if to_regclass('public.community_members') is null then
+      select array_agg(x.id order by x.created_at desc, x.id desc) into ids2
+        from (select p.id, p.created_at from public.posts p order by p.created_at desc, p.id desc limit 50) x;
+    else
+      -- Phase 6 (D51): the general feed also leaves out community posts from
+      -- communities you aren't an active member of (they stay readable elsewhere).
+      execute $q$
+        select array_agg(x.id order by x.created_at desc, x.id desc)
+          from (select p.id, p.created_at from public.posts p
+                 where p.community_id is null or p.author_id = (select auth.uid())
+                    or exists (select 1 from public.community_members m where m.community_id = p.community_id
+                                and m.user_id = (select auth.uid()) and m.status = 'active')
+                 order by p.created_at desc, p.id desc limit 50) x $q$ into ids2;
+    end if;
     res := res || pg_temp.rr4(10, 'Feed function returns exactly what the posts policy allows', ids is not distinct from ids2, '');
 
     -- cursor pagination over the hashtag feed, one post per page

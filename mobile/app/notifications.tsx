@@ -12,6 +12,7 @@ import ScreenHeader from "@/components/ui/screen-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { Colors, FontFamily, Spacing } from "@/constants/theme";
+import { useRespondToInvite } from "@/hooks/use-communities";
 import { useMarkAllNotificationsRead, useMarkNotificationRead, useNotifications, useUnreadCount } from "@/hooks/use-notifications";
 import { describeNotification } from "@/lib/notification-text";
 import { relativeTime } from "@/lib/time";
@@ -24,6 +25,12 @@ const TYPE_ICON: Record<string, string> = {
   follow: "👤",
   follow_request: "🔒",
   follow_accepted: "✅",
+  community_invite: "✉️",
+  community_invite_accepted: "🤝",
+  community_invite_declined: "✉️",
+  community_role: "🛡️",
+  community_owner: "👑",
+  community_content: "📚",
 };
 
 type Row = { kind: "heading"; label: string } | { kind: "item"; item: NotificationItem };
@@ -34,6 +41,8 @@ type Row = { kind: "heading"; label: string } | { kind: "item"; item: Notificati
  * sit under "New (n)". Tapping one marks it read and opens what it is about;
  * "Mark all read" clears every unread item (stored in the database, so it
  * survives a restart). Likes on the same post are one item (D43).
+ * Community invites can be answered right here (Accept / Decline); other
+ * community items open the community or the content item (Phase 6, D52).
  */
 export default function NotificationsScreen() {
   const router = useRouter();
@@ -69,6 +78,10 @@ export default function NotificationsScreen() {
         router.push({ pathname: "/post/[id]", params: { id: n.post_id } });
       } else if (n.type === "follow_request") {
         router.push("/settings/follow-requests");
+      } else if (n.type === "community_content" && n.target_id) {
+        router.push({ pathname: "/community-content/[id]", params: { id: n.target_id } });
+      } else if (n.type.startsWith("community_") && n.community_id) {
+        router.push({ pathname: "/community/[id]", params: { id: n.community_id } });
       } else {
         router.push({ pathname: "/user/[id]", params: { id: n.actor_id } });
       }
@@ -141,7 +154,7 @@ export default function NotificationsScreen() {
               action={<Button label="Try again" variant="secondary" size="md" onPress={() => void list.refetch()} />}
             />
           ) : (
-            <EmptyState emoji="🔔" title="All caught up!" subtitle="You have no notifications right now. Likes, comments and follows show up here." />
+            <EmptyState emoji="🔔" title="All caught up!" subtitle="You have no notifications right now. Likes, comments, follows and community invites show up here." />
           )
         }
         ListFooterComponent={
@@ -165,6 +178,7 @@ export default function NotificationsScreen() {
 
 function NotificationRow({ item, onPress }: { item: NotificationItem; onPress: (n: NotificationItem) => void }) {
   const { lead, rest } = describeNotification(item);
+  const pendingInvite = item.type === "community_invite" && item.invite_status === "pending";
   return (
     <Pressable
       onPress={() => onPress(item)}
@@ -190,13 +204,39 @@ function NotificationRow({ item, onPress }: { item: NotificationItem; onPress: (
         <AppText variant="caption" color={Colors.text3} style={styles.time}>
           {relativeTime(item.created_at)}
         </AppText>
+        {pendingInvite ? <InviteActions item={item} /> : null}
       </View>
       {item.unread ? <View style={styles.dot} accessible={false} /> : null}
     </Pressable>
   );
 }
 
+/** Accept / Decline a community invite without leaving the list. */
+function InviteActions({ item }: { item: NotificationItem }) {
+  const router = useRouter();
+  const toast = useToast();
+  const respond = useRespondToInvite();
+  const answer = (accept: boolean) =>
+    respond.mutate(
+      { inviteId: item.target_id, accept },
+      {
+        onSuccess: () => {
+          toast.show(accept ? `You joined ${item.community_name ?? "the community"}` : "Invite declined", "success");
+          if (accept && item.community_id) router.push({ pathname: "/community/[id]", params: { id: item.community_id } });
+        },
+        onError: (e) => toast.show(e.message, "error"),
+      },
+    );
+  return (
+    <View style={styles.inviteActions}>
+      <Button label="Accept" variant="action" size="sm" onPress={() => answer(true)} loading={respond.isPending && respond.variables?.accept === true} disabled={respond.isPending} />
+      <Button label="Decline" variant="secondary" size="sm" onPress={() => answer(false)} loading={respond.isPending && respond.variables?.accept === false} disabled={respond.isPending} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  inviteActions: { flexDirection: "row", gap: Spacing.sm, marginTop: Spacing.sm },
   list: { paddingBottom: Spacing.xxxl, flexGrow: 1 },
   flex: { flex: 1, minWidth: 0, gap: 4 },
   heading: {

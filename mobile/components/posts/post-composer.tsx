@@ -1,6 +1,6 @@
 import { usePreventRemove, useNavigation } from "@react-navigation/native";
 import { Image } from "expo-image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 import { CloseIcon, ImageIcon, MapPinIcon } from "@/components/icons";
@@ -13,7 +13,9 @@ import DateTimeField from "@/components/ui/date-time-field";
 import Screen from "@/components/ui/screen";
 import TextField from "@/components/ui/text-field";
 import { Colors, FontFamily, Radius, Spacing } from "@/constants/theme";
+import { CommunityAvatar, PrivacyChip } from "@/components/communities/community-bits";
 import { useAuth } from "@/hooks/use-auth";
+import { useCommunities } from "@/hooks/use-communities";
 import { useMyProfile, useTagCatalogue } from "@/hooks/use-profile";
 import { extractHashtags } from "@/lib/hashtags";
 import { pickAndPrepareImage } from "@/lib/image";
@@ -48,7 +50,9 @@ type PostComposerProps = {
  * Create / edit wizard (prototype CreateScreen): type → content → details →
  * preview, trimmed to the agreed MVP fields (D24). Adds an optional photo; the
  * database detects #hashtags typed in the text. No petition goal, no sign /
- * RSVP / take-action buttons (D25).
+ * RSVP / take-action buttons (D25). When creating, Details also asks "Who is
+ * this post for?": Everyone, or one community you belong to (Phase 6, D51).
+ * Editing keeps the audience.
  */
 export default function PostComposer({ initial, onSubmit, onDone, submitLabel }: PostComposerProps) {
   const navigation = useNavigation();
@@ -75,6 +79,17 @@ export default function PostComposer({ initial, onSubmit, onDone, submitLabel }:
   const [saving, setSaving] = useState(false);
   const [donePostId, setDonePostId] = useState<string | null>(null);
   const [pendingLeave, setPendingLeave] = useState<null | (() => void)>(null);
+  const [communityId, setCommunityId] = useState<string | null>(null);
+  const myCommunities = useCommunities("mine");
+  const communityOptions = useMemo(() => myCommunities.data?.pages.flatMap((p) => p.communities) ?? [], [myCommunities.data]);
+  const audience = editing
+    ? initial!.community_id
+      ? { id: initial!.community_id, name: initial!.community_name ?? "a community", isPrivate: false }
+      : null
+    : (() => {
+        const c = communityOptions.find((x) => x.id === communityId);
+        return c ? { id: c.id, name: c.name, isPrivate: c.is_private } : null;
+      })();
 
   // Navigate only after the "done" state is committed, so the unsaved-changes
   // guard is already off when the screen is removed.
@@ -157,6 +172,7 @@ export default function PostComposer({ initial, onSubmit, onDone, submitLabel }:
     setLocation("");
     setEventAt(null);
     setPhoto({ kind: "none" });
+    setCommunityId(null);
     setErrors({});
     setFormError(undefined);
   };
@@ -196,6 +212,7 @@ export default function PostComposer({ initial, onSubmit, onDone, submitLabel }:
         mediaPath,
         mediaWidth,
         mediaHeight,
+        communityId: editing ? undefined : audience?.id ?? null,
       });
       if (!editing) reset();
       setDonePostId(postId); // navigation happens after this state is applied (see effect)
@@ -235,6 +252,8 @@ export default function PostComposer({ initial, onSubmit, onDone, submitLabel }:
         media_url: photo.kind === "new" ? photo.uri : photo.kind === "existing" ? photo.url : null,
         liked_by_me: false,
         saved_by_me: false,
+        community_id: audience?.id ?? null,
+        community_name: audience?.name ?? null,
       }
     : null;
 
@@ -451,6 +470,37 @@ export default function PostComposer({ initial, onSubmit, onDone, submitLabel }:
             autoCapitalize="words"
             editable={!saving}
           />
+          {!editing ? (
+            <View style={styles.audience} accessibilityRole="radiogroup">
+              <AppText variant="bodyMedium" color={Colors.text2}>
+                Who is this post for?
+              </AppText>
+              <AudienceOption title="Everyone" desc="Your followers and the Home feed" selected={communityId === null} onPress={() => setCommunityId(null)} />
+              {communityOptions.length > 0 ? (
+                <AppText variant="caption" color={Colors.text3}>
+                  Or one community you belong to
+                </AppText>
+              ) : myCommunities.isPending ? null : (
+                <AppText variant="caption" color={Colors.text3}>
+                  Join a community in Explore to share posts with it.
+                </AppText>
+              )}
+              {communityOptions.map((c) => (
+                <AudienceOption
+                  key={c.id}
+                  title={c.name}
+                  desc={c.is_private ? "Only members can see it" : "Members see it in Home; anyone can open it"}
+                  selected={communityId === c.id}
+                  onPress={() => setCommunityId(c.id)}
+                  icon={<CommunityAvatar id={c.id} name={c.name} imagePath={c.image_path} size={32} />}
+                  chip={<PrivacyChip isPrivate={c.is_private} short />}
+                />
+              ))}
+              {myCommunities.hasNextPage ? (
+                <Button label="Show more communities" variant="ghost" size="sm" onPress={() => void myCommunities.fetchNextPage()} loading={myCommunities.isFetchingNextPage} />
+              ) : null}
+            </View>
+          ) : null}
           <Button label="Preview" onPress={() => goNext("details")} fullWidth />
         </View>
       ) : null}
@@ -466,9 +516,13 @@ export default function PostComposer({ initial, onSubmit, onDone, submitLabel }:
               ✅ Ready to {editing ? "save" : "publish"}
             </AppText>
             <AppText variant="caption" color={Colors.text2}>
-              {profile.data?.is_private
-                ? "Your account is private: only you and your approved followers will see this post."
-                : "Your post will be visible to everyone on GenZ in Action."}
+              {audience
+                ? audience.isPrivate
+                  ? `Shared to ${audience.name}: only its members will see this post.`
+                  : `Shared to ${audience.name}: its members see it in Home, and anyone can open it.`
+                : profile.data?.is_private
+                  ? "Your account is private: only you and your approved followers will see this post."
+                  : "Your post will be visible to everyone on GenZ in Action."}
             </AppText>
           </View>
           {formError ? (
@@ -498,8 +552,41 @@ export default function PostComposer({ initial, onSubmit, onDone, submitLabel }:
   );
 }
 
+function AudienceOption({ title, desc, selected, onPress, icon, chip }: { title: string; desc: string; selected: boolean; onPress: () => void; icon?: ReactNode; chip?: ReactNode }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: selected }}
+      accessibilityLabel={`${title}. ${desc}`}
+      style={[styles.audienceOption, selected && styles.audienceSelected]}
+    >
+      {icon}
+      <View style={styles.flex}>
+        <View style={styles.audienceTitle}>
+          <AppText variant="bodySemiBold" numberOfLines={1} style={styles.shrink}>
+            {title}
+          </AppText>
+          {chip}
+        </View>
+        <AppText variant="caption" color={Colors.text2}>
+          {desc}
+        </AppText>
+      </View>
+      <View style={[styles.radio, { borderColor: selected ? Colors.cyanDim : "rgba(255,255,255,0.2)", backgroundColor: selected ? Colors.cyanDim : "transparent" }]}>
+        {selected ? <View style={styles.radioDot} /> : null}
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   content: { paddingBottom: 140 },
+  audience: { gap: Spacing.sm },
+  audienceOption: { flexDirection: "row", alignItems: "center", gap: Spacing.md, padding: Spacing.md, borderRadius: Radius.lg, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.hairline },
+  audienceSelected: { borderColor: Colors.cyanDim, backgroundColor: Colors.elevated },
+  audienceTitle: { flexDirection: "row", alignItems: "center", gap: 6 },
+  shrink: { flexShrink: 1 },
   header: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.lg, paddingBottom: Spacing.md, gap: Spacing.md },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 36 },
   progress: { flexDirection: "row", gap: Spacing.sm },
