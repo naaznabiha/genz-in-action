@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ComponentRef } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 
 import AppText from "@/components/ui/app-text";
@@ -20,7 +20,7 @@ type CodeInputProps = {
  * autofill work; the boxes are a visual rendering of it.
  */
 export default function CodeInput({ value, onChange, length, onComplete, error, disabled }: CodeInputProps) {
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<ComponentRef<typeof TextInput>>(null);
   const [focused, setFocused] = useState(false);
 
   const handleChange = (text: string) => {

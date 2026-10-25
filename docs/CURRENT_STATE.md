@@ -1,6 +1,6 @@
 # Current state
 
-_Last updated: 2026-10-24 (Phase 6 communities: implemented, verified, database applied live)_
+_Last updated: 2026-10-25 (Expo SDK 58 upgrade on top of Phase 6: implemented and verified)_
 
 Phase numbering follows the code comments and `decisions.md`:
 **Phase 0** = foundation + UI kit (spec M0) · **Phase 1** = auth slice (spec M1 + M2) ·
@@ -10,7 +10,7 @@ Phase numbering follows the code comments and `decisions.md`:
 
 | Item | Status | Evidence |
 |---|---|---|
-| Expo SDK 54, RN 0.81, TS strict, Expo Router 6 | ✅ | `mobile/package.json`, `tsconfig.json` |
+| Expo SDK 58, RN 0.88, React 19.3, TS strict, Expo Router 58 (SDK 54 until 2026-10-25, D55) | ✅ | `mobile/package.json`, `tsconfig.json` |
 | Five-tab shell + UI kit (tokens, fonts, Button, TextField, Screen, Toast, icons) | ✅ | `mobile/components/ui/*`, `app/dev/ui-kit.tsx` |
 | `npm run typecheck`, `npm run lint` | ✅ pass | Re-run 2026-10-18 |
 | Android JS bundle (`expo export --platform android`) | ✅ builds | Re-run 2026-10-18 |
@@ -253,7 +253,7 @@ badge (the local test bench has no Realtime server).
 
 Designs: 15 boards approved as drawn (https://claude.ai/artifact/EuCAXPxDah17V3Mery6vfh). Decisions (your answers):
 D48 roles, D50 uploads, D53 leave/delete, D54 scope (Projects/Meetings/Resources/Directory dropped; posts under a
-"Posts" filter; stay on SDK 54). Recorded: D47, D49. For confirmation: D51 (post audience), D52 (notifications).
+"Posts" filter; stay on SDK 54 — later superseded by the SDK 58 upgrade, D55). Recorded: D47, D49. For confirmation: D51 (post audience), D52 (notifications).
 
 **App (mobile/)**
 - **Explore → Communities** (4th tab): Create a community, Invitations (Accept / Decline inline), Your communities
@@ -271,7 +271,7 @@ D48 roles, D50 uploads, D53 leave/delete, D54 scope (Projects/Meetings/Resources
   on cards and the post page.
 - **Notifications**: invites (inline Accept / Decline), accepted / declined, made admin, made owner, new
   content. The list now reads `get_notification_list`.
-- New packages (SDK 54 versions, in Expo Go): `expo-document-picker`, `expo-file-system`, `expo-clipboard`.
+- New packages (in Expo Go): `expo-document-picker`, `expo-file-system`, `expo-clipboard` (SDK 58 versions since D55).
 
 **Database (supabase/)**: 8 migrations + 3 checks (`97`, `98`, `99`). See `supabase/README.md` → Phase 6.
 **Applied to the Supabase project on 2026-10-24** (clean preflight, one checksum-verified run). Live: verify
@@ -298,11 +298,46 @@ the storage, block, transfer and delete cases ran in the full 46/46 locally), ro
   "No longer a member"; owner leave → hand over → new owner notified; sole-owner delete.
   Regressions: Phase 5 42/42, Phase 4 58/58, Phase 3 56/56 (request-count check updated: one batch request per
   page for community labels), Phase 2 23/23.
-- Typecheck, lint and the Android bundle export pass; dependencies match SDK 54.
+- Typecheck, lint and the Android bundle export pass (re-verified on SDK 58, below).
 
 **Not verified yet (needs you)**: `docs/phase-6-acceptance-tests.md` on phones — especially **messages
 appearing live on two phones** (the local bench has no Realtime server), real photo/PDF picking on Android, and
 opening PDFs.
+
+## Expo SDK 58 upgrade (implemented and verified; awaiting device testing)
+
+Why: the store Expo Go moved to SDK 58 and only opens SDK 58 projects, so the SDK 54 app stopped opening.
+You chose to upgrade (D55). Done one SDK at a time — 55, 56, 57, 58 — with typecheck, lint, the Android and web
+builds and every browser suite at each step. No database change.
+
+**Now**: Expo 58.0.19 · React Native 0.88 · React 19.3 · Expo Router 58 · New Architecture only.
+
+**Code changes**
+- SDK 56: Expo Router no longer uses React Navigation — imports moved to `expo-router/react-navigation` and
+  `expo-router/js-tabs` (Expo's codemod), and the `@react-navigation/*` packages were removed.
+- SDK 56 lint (React's new `set-state-in-effect` rule): the username availability check (Sign up, Edit Profile)
+  is now one shared hook, and Explore's "See all" tab switch no longer uses an effect.
+- SDK 58: the custom tab bar uses the new `emitter` / `navigateToTab`; the sign-in gate uses
+  `Stack.Protected redirectTo` (first launch → onboarding, later → Welcome, signed in → Home) because
+  `initialRouteName` was removed; "Discard changes?" (Edit Post, Edit Profile) uses `usePreventRemove`'s new
+  `repeat()`; React Native 0.88 type fixes (list empty/footer slots, `TextInput` refs); `@types/react` 19.2.
+- `npm install` is clean again (the SDK 58 date picker fixed an optional Windows peer conflict).
+
+**Verified by the agent**
+- Each step: typecheck, lint, Android bundle and web build. SDK 55, 56 and 57: all suites passed with no
+  further changes.
+- SDK 58 — two full runs from a cleared build cache, **246/246**: Phase 2 23/23, Phase 3 56/56,
+  Phase 4 58/58, Phase 5 42/42, Phase 6 55/55, and a new SDK 58 suite 12/12 (first launch → onboarding, Skip →
+  Welcome, /onboarding and protected pages redirect when they should, signed-in /welcome → Home, "Discard
+  changes?" on Edit Post and Edit Profile: Keep editing stays, Discard leaves, nothing saved).
+- Expo Router 58 loads each web screen's code the first time it's opened; a few browser checks now wait for
+  the navigation instead of checking the URL instantly, and the "unsave is immediate" check now proves it with
+  a deliberately slowed server. Phones load as before (Expo: native unchanged).
+- `expo-doctor`: 18/20 — the two remaining checks need Expo's servers, which the agent's workspace can't reach.
+
+**Not verified yet (needs you)**: open the app in **Expo Go for SDK 58** on Android, then run
+`docs/phase-6-acceptance-tests.md` (live chat on two phones, photo/PDF picking) and spot-check sign up,
+log in/out, Edit Profile's "Discard changes?", the tab bar and the date picker on an Event post.
 
 ## Known gaps / follow-ups
 

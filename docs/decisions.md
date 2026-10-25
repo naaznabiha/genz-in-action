@@ -2,7 +2,7 @@
 
 | # | Date | Decision | Status |
 | --- | --- | --- | --- |
-| D1 | 2026-10-18 | Stay on **Expo SDK 54** for Phases 0–2 so the app runs in store Expo Go on Android. Schedule a deliberate SDK upgrade checkpoint before Phase 6 (communities). | Agreed |
+| D1 | 2026-10-18 | (Superseded by D55: now SDK 58.) Stay on **Expo SDK 54** for Phases 0–2 so the app runs in store Expo Go on Android. Schedule a deliberate SDK upgrade checkpoint before Phase 6 (communities). | Agreed |
 | D2 | 2026-10-18 | Git repo at the project root; Figma Make web prototype moved to `design-reference/`; Expo app stays in `mobile/`. No Git LFS. | Agreed |
 | D3 | 2026-10-18 | App identity (provisional, change before first store build): name **GenZ in Action**, slug `genz-in-action`, scheme `genzinaction`, Android package / iOS bundle ID `com.genzinaction.app`. | Provisional |
 | D4 | 2026-10-18 | Dark-only UI (`userInterfaceStyle: "dark"`), matching the prototype. | Agreed |
@@ -56,6 +56,7 @@
 | D52 | 2026-10-24 | **Community notifications**: invited (answer inline with Accept / Decline), your invite accepted / declined, made admin, made owner, new content in a community you're in (respects Activity Updates). **Chat messages never notify** — the discussion updates live (Supabase Realtime) while it's open. A cancelled invite's notification disappears. | Implemented — confirm |
 | D53 | 2026-10-24 | **Leaving and deleting** (your answer): the owner can't leave until ownership is handed over (the old owner becomes an admin and can then stay or leave). An owner who is the only active member may delete the community (its discussion, content and community posts go with it). | Agreed |
 | D54 | 2026-10-24 | Phase 6 scope: the prototype's Projects Hub, Meetings & Events, Resources Library and Member Directory are **dropped for the MVP** (your answer); community posts appear under a **"Posts" filter in Content** (your answer). The SDK upgrade checkpoint (D1) was taken: **stay on SDK 54** for now (store Expo Go is SDK 54; SDK 55 awaits store approval; 56 needs a development build). | Agreed |
+| D55 | 2026-10-25 | **Upgraded Expo SDK 54 → 58** (your answer, after store Expo Go moved to SDK 58 and stopped opening SDK 54 projects). Done one SDK at a time (55, 56, 57, 58), full checks at each step. Now: Expo 58.0.19, React Native 0.88, React 19.3, Expo Router 58 (New Architecture only since SDK 55). Code changes: imports moved from `@react-navigation/*` to `expo-router/react-navigation` / `expo-router/js-tabs` and those packages removed (SDK 56); custom tab bar uses `emitter` / `navigateToTab`; the sign-in gate uses `Stack.Protected redirectTo` (first launch → /onboarding, later → /welcome, signed in → Home) instead of the removed `initialRouteName`; "Discard changes?" uses the new `usePreventRemove` `repeat()`; list empty/footer slots pass `undefined` instead of `null`; `TextInput` refs use `ComponentRef`; the username check is one shared hook (`useUsernameAvailability`) and Explore's tab link is adjusted during render (new React lint rule). On web, Expo Router 58 loads each screen's code on first visit (phones unchanged). Supersedes D1 and the "stay on SDK 54" part of D54. | Implemented |
 
 ## Open decisions
 

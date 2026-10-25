@@ -1,4 +1,4 @@
-import { usePreventRemove, useNavigation } from "@react-navigation/native";
+import { usePreventRemove, useNavigation } from "expo-router/react-navigation";
 import { Image } from "expo-image";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
@@ -79,6 +79,7 @@ export default function PostComposer({ initial, onSubmit, onDone, submitLabel }:
   const [saving, setSaving] = useState(false);
   const [donePostId, setDonePostId] = useState<string | null>(null);
   const [pendingLeave, setPendingLeave] = useState<null | (() => void)>(null);
+  const [discarding, setDiscarding] = useState(false);
   const [communityId, setCommunityId] = useState<string | null>(null);
   const myCommunities = useCommunities("mine");
   const communityOptions = useMemo(() => myCommunities.data?.pages.flatMap((p) => p.communities) ?? [], [myCommunities.data]);
@@ -116,9 +117,9 @@ export default function PostComposer({ initial, onSubmit, onDone, submitLabel }:
     : Boolean(title || body || location || eventAt || photo.kind !== "none");
 
   // Editing: leaving with unsaved changes asks first. (Create is a tab; its draft simply stays.)
-  usePreventRemove(editing && dirty && donePostId === null, ({ data }) => {
+  usePreventRemove(editing && dirty && donePostId === null && !discarding, ({ repeat }) => {
     if (saving) return;
-    setPendingLeave(() => () => navigation.dispatch(data.action));
+    setPendingLeave(() => repeat); // Discard turns prevention off, then repeats the blocked action
   });
 
   const contentErrors = (): Partial<Record<PostField, string>> => {
@@ -543,6 +544,7 @@ export default function PostComposer({ initial, onSubmit, onDone, submitLabel }:
           onPress={() => {
             const leave = pendingLeave;
             setPendingLeave(null);
+            setDiscarding(true);
             leave?.();
           }}
         />

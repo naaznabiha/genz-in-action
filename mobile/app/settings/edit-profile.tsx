@@ -1,4 +1,4 @@
-import { usePreventRemove, useNavigation } from "@react-navigation/native";
+import { usePreventRemove } from "expo-router/react-navigation";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
@@ -15,6 +15,7 @@ import ScreenHeader from "@/components/ui/screen-header";
 import TextField from "@/components/ui/text-field";
 import { useToast } from "@/components/ui/toast";
 import { Colors, Spacing } from "@/constants/theme";
+import { useUsernameAvailability } from "@/hooks/use-username-availability";
 import { useAuth } from "@/hooks/use-auth";
 import { useMyProfile, useMyProfileTags, useTagCatalogue, useUpdateMyProfile } from "@/hooks/use-profile";
 import { pickAndPrepareImage } from "@/lib/image";
@@ -31,7 +32,6 @@ import {
   validateLocation,
   validateUsername,
 } from "@/lib/validation";
-import { isUsernameAvailable } from "@/services/auth";
 import { avatarPublicUrl, deleteAvatarFile, uploadAvatar } from "@/services/profile";
 import type { Profile, ProfileTag } from "@/types/profile";
 
@@ -43,7 +43,6 @@ type Photo =
   | { kind: "new"; uri: string; base64: string }
   | { kind: "removed" };
 
-type Availability = "own" | "idle" | "checking" | "available" | "taken" | "unknown";
 
 /** Edit Profile (spec FR-18; prototype EditProfileScreen). Loads data, then renders the form. */
 export default function EditProfileScreen() {
@@ -89,7 +88,6 @@ export default function EditProfileScreen() {
 
 function EditProfileForm({ profile, currentTags, catalogue }: { profile: Profile; currentTags: ProfileTag[]; catalogue: ProfileTag[] }) {
   const router = useRouter();
-  const navigation = useNavigation();
   const toast = useToast();
   const { user } = useAuth();
   const updateProfile = useUpdateMyProfile();
@@ -112,12 +110,14 @@ function EditProfileForm({ profile, currentTags, catalogue }: { profile: Profile
   const [tagIds, setTagIds] = useState<string[]>(initial.tagIds);
   const [photo, setPhoto] = useState<Photo>({ kind: "unchanged" });
   const [processingPhoto, setProcessingPhoto] = useState(false);
-  const [availability, setAvailability] = useState<Availability>("own");
+  // Live username availability (server-side, case-insensitive).
+  const { status: availability, markTaken } = useUsernameAvailability(username, initial.username);
   const [serverErrors, setServerErrors] = useState<Partial<Record<ProfileField, string>>>({});
   const [formError, setFormError] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [pendingLeave, setPendingLeave] = useState<null | (() => void)>(null);
+  const [discarding, setDiscarding] = useState(false);
   const mounted = useRef(true);
   useEffect(() => () => {
     mounted.current = false;
@@ -147,33 +147,10 @@ function EditProfileForm({ profile, currentTags, catalogue }: { profile: Profile
   const currentAvatarUri =
     photo.kind === "new" ? photo.uri : photo.kind === "removed" ? null : avatarPublicUrl(profile.avatar_path);
 
-  // ----- live username availability (server-side, case-insensitive) -----
-  useEffect(() => {
-    if (username === initial.username) {
-      setAvailability("own");
-      return;
-    }
-    if (validateUsername(username)) {
-      setAvailability("idle");
-      return;
-    }
-    setAvailability("checking");
-    let cancelled = false;
-    const id = setTimeout(() => {
-      isUsernameAvailable(username)
-        .then((ok) => !cancelled && setAvailability(ok ? "available" : "taken"))
-        .catch(() => !cancelled && setAvailability("unknown"));
-    }, 450);
-    return () => {
-      cancelled = true;
-      clearTimeout(id);
-    };
-  }, [username, initial.username]);
-
   // ----- leaving with unsaved changes asks first (back button, gesture, Android back) -----
-  usePreventRemove(dirty && !saved, ({ data }) => {
+  usePreventRemove(dirty && !saved && !discarding, ({ repeat }) => {
     if (saving) return;
-    setPendingLeave(() => () => navigation.dispatch(data.action));
+    setPendingLeave(() => repeat); // Discard turns prevention off, then repeats the blocked action
   });
 
   useEffect(() => {
@@ -244,7 +221,7 @@ function EditProfileForm({ profile, currentTags, catalogue }: { profile: Profile
       // Nothing was saved (the RPC is atomic): drop the photo we just uploaded.
       if (uploadedPath) void deleteAvatarFile(uploadedPath);
       const err = toProfileSaveError(error);
-      if (err.field === "username" && err.message.includes("taken")) setAvailability("taken");
+      if (err.field === "username" && err.message.includes("taken")) markTaken(username);
       if (err.field) setServerErrors({ [err.field]: err.message });
       else setFormError(err.message);
     } finally {
@@ -429,6 +406,7 @@ function EditProfileForm({ profile, currentTags, catalogue }: { profile: Profile
           onPress={() => {
             const leave = pendingLeave;
             setPendingLeave(null);
+            setDiscarding(true);
             leave?.();
           }}
         />

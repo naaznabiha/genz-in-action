@@ -327,7 +327,7 @@ export default function ProfileView({ userId, isOwn }: ProfileViewProps) {
         ItemSeparatorComponent={Separator}
         ListHeaderComponent={header}
         ListEmptyComponent={
-          !showPosts ? null : postsQuery.isPending ? (
+          !showPosts ? undefined : postsQuery.isPending ? (
             <SkeletonCard />
           ) : postsQuery.isError ? (
             <EmptyState emoji="⚠️" title="Couldn't load posts" subtitle={postsQuery.error.message} />
@@ -340,7 +340,7 @@ export default function ProfileView({ userId, isOwn }: ProfileViewProps) {
             />
           )
         }
-        ListFooterComponent={postsQuery.isFetchingNextPage ? <ActivityIndicator color={Colors.cyan} style={styles.footer} /> : null}
+        ListFooterComponent={postsQuery.isFetchingNextPage ? <ActivityIndicator color={Colors.cyan} style={styles.footer} /> : undefined}
         onEndReached={onEndReached}
         onEndReachedThreshold={0.5}
         contentContainerStyle={[styles.list, isOwn && styles.listTab]}
