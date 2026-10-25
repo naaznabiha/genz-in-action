@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import AuthHeader from "@/components/auth/auth-header";
@@ -25,10 +25,10 @@ import {
   validatePassword,
   validateUsername,
 } from "@/lib/validation";
-import { isUsernameAvailable, signUpWithEmail } from "@/services/auth";
+import { useUsernameAvailability, type UsernameAvailability } from "@/hooks/use-username-availability";
+import { signUpWithEmail } from "@/services/auth";
 
 type Field = "name" | "username" | "email" | "password";
-type Availability = "idle" | "checking" | "available" | "taken" | "unknown";
 
 /** Sign up (spec §5.2, FR-03). Prototype: SignupScreen. */
 export default function SignupScreen() {
@@ -41,26 +41,9 @@ export default function SignupScreen() {
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const [formError, setFormError] = useState<string>();
   const [loading, setLoading] = useState(false);
-  const [availability, setAvailability] = useState<Availability>("idle");
 
   // Debounced server-side availability check (FR / spec §6.1: validated server-side).
-  useEffect(() => {
-    if (validateUsername(username)) {
-      setAvailability("idle");
-      return;
-    }
-    setAvailability("checking");
-    let cancelled = false;
-    const id = setTimeout(() => {
-      isUsernameAvailable(username)
-        .then((ok) => !cancelled && setAvailability(ok ? "available" : "taken"))
-        .catch(() => !cancelled && setAvailability("unknown"));
-    }, 450);
-    return () => {
-      cancelled = true;
-      clearTimeout(id);
-    };
-  }, [username]);
+  const { status: availability, markTaken } = useUsernameAvailability(username);
 
   const clearErrors = () => {
     setErrors({});
@@ -93,7 +76,7 @@ export default function SignupScreen() {
     } catch (error) {
       const err = error instanceof AuthFlowError ? error : new AuthFlowError(String(error));
       if (err.code === "username_taken") {
-        setAvailability("taken");
+        markTaken(username);
         setErrors({ username: err.message });
       } else if (err.code === "user_already_exists") {
         setErrors({ email: err.message });
@@ -199,8 +182,8 @@ export default function SignupScreen() {
   );
 }
 
-function UsernameStatus({ username, availability }: { username: string; availability: Availability }) {
-  if (availability === "idle") return null;
+function UsernameStatus({ username, availability }: { username: string; availability: UsernameAvailability }) {
+  if (availability === "idle" || availability === "own") return null;
   const map = {
     checking: { color: Colors.text3, text: "Checking availability…" },
     available: { color: Colors.green, text: `@${username} is available` },

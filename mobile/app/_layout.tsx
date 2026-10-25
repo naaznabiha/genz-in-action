@@ -4,7 +4,7 @@ import { Inter_600SemiBold } from "@expo-google-fonts/inter/600SemiBold";
 import { Inter_700Bold } from "@expo-google-fonts/inter/700Bold";
 import { PlusJakartaSans_700Bold } from "@expo-google-fonts/plus-jakarta-sans/700Bold";
 import { PlusJakartaSans_800ExtraBold } from "@expo-google-fonts/plus-jakarta-sans/800ExtraBold";
-import { DarkTheme, ThemeProvider, type Theme } from "@react-navigation/native";
+import { DarkTheme, ThemeProvider, type Theme } from "expo-router/react-navigation";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
@@ -37,15 +37,15 @@ const navigationTheme: Theme = {
 };
 
 /**
- * Session gate (spec §5.4). Expo Router's Stack.Protected removes screens whose
- * guard is false and redirects to the first available screen, so:
- *  - signed out (or mid password-reset) → (auth) group
- *  - signed in                          → (tabs) group
- * When the session ends (logout, revoked or expired token) the guard flips and
- * protected history is discarded, so no protected screen is left visible.
+ * Session gate (spec §5.4). Since Expo Router 58, a Stack.Protected screen whose
+ * guard is false stays registered but renders a redirect instead of its content:
+ *  - signed out (or mid password-reset) → /onboarding the first time, then /welcome
+ *  - signed in                          → / (Home)
+ * When the session ends (logout, revoked or expired token) the guard flips, so
+ * every protected screen still in history redirects and none stays visible.
  */
 function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
-  const { isReady, isSignedIn } = useAuth();
+  const { isReady, isSignedIn, hasOnboarded } = useAuth();
   const ready = fontsReady && isReady;
 
   useEffect(() => {
@@ -56,10 +56,10 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg } }}>
-      <Stack.Protected guard={!isSignedIn}>
+      <Stack.Protected guard={!isSignedIn} redirectTo="/">
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
-      <Stack.Protected guard={isSignedIn}>
+      <Stack.Protected guard={isSignedIn} redirectTo={hasOnboarded ? "/welcome" : "/onboarding"}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="settings/index" />
         <Stack.Screen name="settings/edit-profile" />

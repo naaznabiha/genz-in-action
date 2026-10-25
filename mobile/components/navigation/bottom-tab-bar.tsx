@@ -1,4 +1,4 @@
-import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import type { BottomTabBarProps } from "expo-router/js-tabs";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import type { ComponentType } from "react";
@@ -42,7 +42,7 @@ function tapFeedback() {
  * four labelled tabs plus a raised gradient "Create" button in the middle.
  * Unread counts come from each screen's `tabBarBadge` option.
  */
-export default function BottomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+export default function BottomTabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -55,10 +55,10 @@ export default function BottomTabBar({ state, descriptors, navigation }: BottomT
 
           const onPress = () => {
             tapFeedback();
-            const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
-            if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
+            const event = emitter.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
+            if (!focused && !event.defaultPrevented) navigateToTab(route.key);
           };
-          const onLongPress = () => navigation.emit({ type: "tabLongPress", target: route.key });
+          const onLongPress = () => emitter.emit({ type: "tabLongPress", target: route.key });
 
           if (route.name === CREATE_ROUTE) {
             return (

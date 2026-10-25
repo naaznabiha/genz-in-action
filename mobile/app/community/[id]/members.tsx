@@ -155,7 +155,7 @@ export default function MembersScreen() {
             )}
           </View>
         )}
-        ListEmptyComponent={members.isPending || community.isPending ? <ActivityIndicator color={Colors.cyan} style={styles.loading} /> : members.isError ? <EmptyState emoji="⚠️" title="Couldn't load members" subtitle={members.error.message} /> : null}
+        ListEmptyComponent={members.isPending || community.isPending ? <ActivityIndicator color={Colors.cyan} style={styles.loading} /> : members.isError ? <EmptyState emoji="⚠️" title="Couldn't load members" subtitle={members.error.message} /> : undefined}
         ListFooterComponent={
           <View>
             <ListFooter

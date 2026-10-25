@@ -218,7 +218,7 @@ export default function DiscussionScreen() {
         onEndReached={onEndReached}
         onEndReachedThreshold={0.4}
         contentContainerStyle={styles.list}
-        ListFooterComponent={messages.isFetchingNextPage ? <ActivityIndicator color={Colors.cyan} style={styles.more} /> : null}
+        ListFooterComponent={messages.isFetchingNextPage ? <ActivityIndicator color={Colors.cyan} style={styles.more} /> : undefined}
         ListEmptyComponent={
           messages.isPending ? (
             <ActivityIndicator color={Colors.cyan} style={styles.loading} />

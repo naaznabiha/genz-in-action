@@ -1,4 +1,4 @@
-import { useState, type ReactNode, type Ref } from "react";
+import { useState, type ComponentRef, type ReactNode, type Ref } from "react";
 import { Pressable, StyleSheet, TextInput, View, type TextInputProps } from "react-native";
 
 import { EyeIcon, EyeOffIcon } from "@/components/icons";
@@ -13,7 +13,7 @@ type TextFieldProps = Omit<TextInputProps, "style"> & {
   showCount?: boolean;
   leftIcon?: ReactNode;
   rightAccessory?: ReactNode;
-  ref?: Ref<TextInput>;
+  ref?: Ref<ComponentRef<typeof TextInput>>;
 };
 
 /**

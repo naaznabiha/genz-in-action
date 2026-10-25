@@ -5,8 +5,8 @@ Use **three accounts**: **A** (owner), **B** (member → admin), **C** (stays a 
 phones so you can watch the discussion update live. Tick a box only when you have seen the result yourself.
 
 ## Setup
-- [ ] `cd mobile && npm install` (adds `expo-document-picker`, `expo-file-system`, `expo-clipboard`, all SDK 54) → no errors.
-- [ ] `npm run typecheck` and `npm run lint` pass. `npx expo start` → app opens in Expo Go (SDK 54).
+- [ ] `cd mobile && npm install` (SDK 58; includes `expo-document-picker`, `expo-file-system`, `expo-clipboard`) → no errors or peer-dependency warnings.
+- [ ] `npm run typecheck` and `npm run lint` pass. `npx expo start` → app opens in **Expo Go for SDK 58**.
 - [ ] Each account has **Activity Updates** on (Settings).
 
 ## Create (A)

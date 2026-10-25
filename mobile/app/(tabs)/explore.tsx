@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 
 import { CommunitiesHeader, CommunityCard } from "@/components/communities/communities-tab";
@@ -59,10 +59,14 @@ export default function ExploreScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   // A Home "See all" link can switch tabs while Explore is already mounted
-  // (`at` changes on every tap, so the same link works twice).
-  useEffect(() => {
+  // (`at` changes on every tap, so the same link works twice). Adjusted during
+  // render when the link changes (React's pattern, no effect).
+  const linkKey = `${params.tab ?? ""}|${params.at ?? ""}`;
+  const [seenLink, setSeenLink] = useState(linkKey);
+  if (seenLink !== linkKey) {
+    setSeenLink(linkKey);
     if (isTab(params.tab)) setTab(params.tab);
-  }, [params.tab, params.at]);
+  }
 
   const categoryFeed = useFeed(category);
   const trending = useTrendingTags(10);
@@ -255,7 +259,7 @@ export default function ExploreScreen() {
         renderItem={renderItem}
         ItemSeparatorComponent={tab === "people" ? RowDivider : undefined}
         ListHeaderComponent={header}
-        ListEmptyComponent={empty ? <>{empty}</> : null}
+        ListEmptyComponent={empty ? <>{empty}</> : undefined}
         ListFooterComponent={
           list ? (
             <ListFooter
@@ -266,7 +270,7 @@ export default function ExploreScreen() {
               onRetry={() => void list.fetchNextPage()}
               endLabel={tab === "people" || tab === "communities" ? undefined : "You're all caught up"}
             />
-          ) : null
+          ) : undefined
         }
         onEndReached={onEndReached}
         onEndReachedThreshold={0.5}

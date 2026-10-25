@@ -5,8 +5,8 @@ import { useAuth } from "@/hooks/use-auth";
 
 /**
  * Unauthenticated flow (spec §5.1–5.3, milestone M1).
- * Screen order matters: the first available screen is where the root gate lands,
- * so first-time users see onboarding and everyone else sees welcome.
+ * The root gate sends signed-out people to /onboarding the first time and to
+ * /welcome afterwards (Stack.Protected redirectTo, Expo Router 58).
  * Onboarding is only available until it has been completed or skipped (FR-01).
  */
 export default function AuthLayout() {
@@ -14,10 +14,9 @@ export default function AuthLayout() {
 
   return (
     <Stack
-      initialRouteName={hasOnboarded ? "welcome" : "onboarding"}
       screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg }, animation: "slide_from_right" }}
     >
-      <Stack.Protected guard={!hasOnboarded}>
+      <Stack.Protected guard={!hasOnboarded} redirectTo="/welcome">
         <Stack.Screen name="onboarding" options={{ animation: "fade" }} />
       </Stack.Protected>
       <Stack.Screen name="welcome" options={{ animation: "fade" }} />

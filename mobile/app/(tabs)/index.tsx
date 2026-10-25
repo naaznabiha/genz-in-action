@@ -240,7 +240,7 @@ export default function HomeScreen() {
             <AppText variant="caption" color={Colors.text3} align="center" style={styles.footer}>
               You&apos;re all caught up
             </AppText>
-          ) : null
+          ) : undefined
         }
         onEndReached={onEndReached}
         onEndReachedThreshold={0.5}
